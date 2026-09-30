@@ -17,7 +17,7 @@ final class HotkeyManager: ObservableObject {
     private var lastCommandUpTime: TimeInterval = 0
     private var isCommandDown: Bool = false
     private let doubleTapThreshold: TimeInterval = 0.4
-    private let holdThreshold: TimeInterval = 1.0
+    private let holdThreshold: TimeInterval = 0.7
     private var otherKeyPressedDuringCommand: Bool = false
     private var holdWorkItem: DispatchWorkItem?
 

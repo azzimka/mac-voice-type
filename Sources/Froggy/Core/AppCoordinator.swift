@@ -99,9 +99,9 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        // Если запись длилась меньше 0.4 секунды — это случайное нажатие, закрываем тихо без ошибок
+        // Если запись длилась меньше 0.4 секунды — это случайное нажатие (только для режима обычной диктовки)
         let duration = ProcessInfo.processInfo.systemUptime - recordingStartTime
-        if duration < 0.4 {
+        if currentMode == .dictation && duration < 0.4 {
             print("[Froggy] AppCoordinator: recording too short (\(String(format: "%.2f", duration))s), cancelling quietly")
             FloatingHUDWindow.shared.hide(delay: 0.1)
             audioRecorder.cleanup(fileURL: audioURL)
