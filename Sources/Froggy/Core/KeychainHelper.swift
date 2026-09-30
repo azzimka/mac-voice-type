@@ -1,49 +1,34 @@
 import Foundation
-import Security
 
+/// Хранилище настроек Froggy: быстрый доступ без системных запросов пароля macOS
 enum KeychainHelper {
-    private static let serviceName = "com.froggy.app"
-    private static let apiKeyAccount = "groq_api_key"
+    private static let keyName = "froggy_groq_api_key"
+    private static var cachedKey: String? = nil
 
     @discardableResult
     static func saveAPIKey(_ key: String) -> Bool {
-        guard let data = key.data(using: .utf8) else { return false }
-        deleteAPIKey()
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: apiKeyAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        cachedKey = trimmed
+        UserDefaults.standard.set(trimmed, forKey: keyName)
+        print("[Froggy] API key saved successfully to UserDefaults")
+        return true
     }
 
     static func getAPIKey() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: apiKeyAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data,
-              let key = String(data: data, encoding: .utf8) else {
-            return nil
+        if let mem = cachedKey, !mem.isEmpty {
+            return mem
         }
-        return key
+        if let stored = UserDefaults.standard.string(forKey: keyName), !stored.isEmpty {
+            cachedKey = stored
+            return stored
+        }
+        return nil
     }
 
     @discardableResult
     static func deleteAPIKey() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: apiKeyAccount
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        cachedKey = nil
+        UserDefaults.standard.removeObject(forKey: keyName)
+        return true
     }
 }

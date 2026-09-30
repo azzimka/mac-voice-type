@@ -32,7 +32,7 @@ final class OnboardingViewModel: ObservableObject {
             return
         }
         if KeychainHelper.saveAPIKey(cleaned) {
-            statusMessage = "✓ Ключ сохранён в Apple Keychain"
+            statusMessage = "✓ Ключ сохранён"
             statusIsSuccess = true
         } else {
             statusMessage = "Ошибка сохранения"
