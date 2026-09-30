@@ -90,7 +90,7 @@ final class GroqClient {
         appendField("model", model)
         appendField("response_format", "json")
         appendField("temperature", "0.0")
-        appendField("prompt", "O'zbekcha, русский, English, multi-language speech, IT terms, code-switching.")
+        appendField("prompt", "O'zbekcha, русский язык, English. Привет, как дела? Hi! Salom, ishlar yaxshimi? Git, GitHub, API, macOS.")
 
         let filename = fileURL.lastPathComponent
         let mimeType = filename.hasSuffix(".wav") ? "audio/wav" : "audio/m4a"

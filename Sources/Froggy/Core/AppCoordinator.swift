@@ -130,7 +130,7 @@ final class AppCoordinator: ObservableObject {
                     return
                 }
 
-                // 2. Обработка через Llama 3.3 в зависимости от режима:
+                // 2. Обработка текста:
                 let finalText: String
                 let successMessage: String
 
@@ -139,8 +139,8 @@ final class AppCoordinator: ObservableObject {
                     finalText = try await GroqClient.shared.translateText(text: rawText, apiKey: apiKey)
                     successMessage = "Переведено!"
                 } else {
-                    FloatingHUDWindow.shared.update(state: .processing(stage: "Исправление ошибок...", mode: .dictation))
-                    finalText = try await GroqClient.shared.correctGrammar(text: rawText, apiKey: apiKey)
+                    // Режим обычной диктовки: чистый моментальный Whisper (максимальная скорость и естественность)
+                    finalText = rawText
                     successMessage = "Готово!"
                 }
 
