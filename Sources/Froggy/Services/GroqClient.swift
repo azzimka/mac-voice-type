@@ -26,7 +26,7 @@ final class GroqClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForRequest = 180 // Достаточно для загрузки и обработки 10-минутных аудиозаписей
         self.session = URLSession(configuration: config)
     }
 

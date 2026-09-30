@@ -1,6 +1,16 @@
 import Cocoa
 import Carbon
 
+/// Надежный сервис прямого ввода распознанного текста в активное приложение.
+///
+/// Преимущества:
+/// 1. Прямой ввод через CoreGraphics Unicode Key Events (postToPid / cghidEventTap).
+/// 2. Буфер обмена пользователя (NSPasteboard.general) НЕ ЗАТРАГИВАЕТСЯ:
+///    - Скопированные пользователем данные сохраняются в первозданном виде.
+///    - Сторонние приложения (Reverso, Alfred, Raycast) не получают ложных событий
+///      изменения буфера и не всплывают на экране.
+/// 3. Пакетная передача (до 20 Unicode символов в одном событии) обеспечивает
+///    мгновенную вставку текста любой длины без задержек.
 final class TextInjector {
     static let shared = TextInjector()
     private init() {}
@@ -10,46 +20,88 @@ final class TextInjector {
         return AXIsProcessTrustedWithOptions(options as CFDictionary)
     }
 
-    func insertText(_ text: String) {
+    func insertText(_ text: String, targetApp: NSRunningApplication? = nil) {
         guard !text.isEmpty else {
             print("[Froggy] TextInjector: text is empty, skipping")
             return
         }
 
-        let isTrusted = TextInjector.checkAccessibilityPermission(prompt: false)
-        if !isTrusted {
-            print("[Froggy] TextInjector: warning - Accessibility permission check returned false, attempting paste anyway")
+        DispatchQueue.main.async { [self] in
+            self.performDirectInsert(text, targetApp: targetApp)
         }
-
-        let pasteboard = NSPasteboard.general
-
-        // Set new text directly to pasteboard
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
-        // Small delay to ensure pasteboard is updated
-        usleep(50_000) // 50ms
-
-        // Simulate Cmd+V
-        simulateCmdV()
-
-        print("[Froggy] TextInjector: pasted \(text.count) chars")
     }
 
-    private func simulateCmdV() {
-        let vKeyCode: CGKeyCode = 0x09
-        let source = CGEventSource(stateID: .combinedSessionState)
+    private func performDirectInsert(_ text: String, targetApp: NSRunningApplication?) {
+        // Определяем целевое приложение (переданное или текущее активное)
+        let app = (targetApp != nil && !(targetApp?.isTerminated ?? true))
+            ? targetApp
+            : NSWorkspace.shared.frontmostApplication
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
-            print("[Froggy] TextInjector: failed to create CGEvents")
+        guard let target = app else {
+            print("[Froggy] TextInjector: no target application, fallback to HID event tap")
+            typeViaHID(text)
             return
         }
 
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
+        // Если фокус временно сместился, мягко возвращаем фокус целевому приложению
+        if target.processIdentifier != NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            if #available(macOS 14.0, *) {
+                target.activate()
+            } else {
+                target.activate(options: [.activateIgnoringOtherApps])
+            }
+            usleep(25_000) // 25 мс для активации окна
+        }
 
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        let pid = target.processIdentifier
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let chars = Array(text)
+        let chunkSize = 20
+
+        print("[Froggy] TextInjector: directly typing \(chars.count) chars into \(target.localizedName ?? "app") (PID: \(pid)) without touching clipboard")
+
+        for i in stride(from: 0, to: chars.count, by: chunkSize) {
+            let end = min(i + chunkSize, chars.count)
+            let chunkString = String(chars[i..<end])
+            var utf16 = Array(chunkString.utf16)
+
+            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+                continue
+            }
+
+            keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+            keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+
+            keyDown.postToPid(pid)
+            keyUp.postToPid(pid)
+            usleep(1500) // 1.5 мс между пакетами для надежной обработки полем ввода
+        }
+
+        print("[Froggy] TextInjector: direct insertion completed successfully")
+    }
+
+    private func typeViaHID(_ text: String) {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let chars = Array(text)
+        let chunkSize = 20
+
+        for i in stride(from: 0, to: chars.count, by: chunkSize) {
+            let end = min(i + chunkSize, chars.count)
+            let chunkString = String(chars[i..<end])
+            var utf16 = Array(chunkString.utf16)
+
+            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+                continue
+            }
+
+            keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+            keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            usleep(1500)
+        }
     }
 }

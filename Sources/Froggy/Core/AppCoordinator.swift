@@ -13,6 +13,7 @@ final class AppCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var recordingStartTime: TimeInterval = 0
     private var currentMode: DictationMode = .dictation
+    private var targetApplication: NSRunningApplication?
 
     private init() {
         setupBindings()
@@ -74,6 +75,10 @@ final class AppCoordinator: ObservableObject {
         }
 
         do {
+            let front = NSWorkspace.shared.frontmostApplication
+            if front?.bundleIdentifier != Bundle.main.bundleIdentifier {
+                self.targetApplication = front
+            }
             try audioRecorder.startRecording()
             self.currentMode = mode
             self.recordingStartTime = ProcessInfo.processInfo.systemUptime
@@ -146,8 +151,8 @@ final class AppCoordinator: ObservableObject {
 
                 print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")
 
-                // 3. Вставка текста
-                TextInjector.shared.insertText(finalText)
+                // 3. Вставка текста напрямую в целевое приложение без изменения буфера обмена
+                TextInjector.shared.insertText(finalText, targetApp: self.targetApplication)
 
                 // 4. Готово!
                 FloatingHUDWindow.shared.update(state: .completed(message: successMessage))

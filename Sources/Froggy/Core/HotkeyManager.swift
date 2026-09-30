@@ -20,6 +20,7 @@ final class HotkeyManager: ObservableObject {
     private let holdThreshold: TimeInterval = 0.7
     private var otherKeyPressedDuringCommand: Bool = false
     private var holdWorkItem: DispatchWorkItem?
+    private var justStoppedRecording: Bool = false
 
     var isRecordingActive: Bool = false
     var isHoldRecordingActive: Bool = false
@@ -79,8 +80,10 @@ final class HotkeyManager: ObservableObject {
             // Если обычная диктовка уже идёт — одиночное нажатие Command останавливает её
             if isRecordingActive {
                 print("[Froggy] HotkeyManager: Cmd pressed during recording -> stopping")
-                onStopRecording?()
+                justStoppedRecording = true
+                isRecordingActive = false
                 lastCommandUpTime = 0
+                onStopRecording?()
                 return
             }
 
@@ -104,6 +107,13 @@ final class HotkeyManager: ObservableObject {
             // Отменяем таймер удержания
             holdWorkItem?.cancel()
             holdWorkItem = nil
+
+            // Если мы только что остановили запись этим нажатием, сбрасываем состояние и не считаем это за тап
+            if justStoppedRecording {
+                justStoppedRecording = false
+                lastCommandUpTime = 0
+                return
+            }
 
             // Если это был режим переводчика (зажатие 1 сек), то при отпускании завершаем запись и переводим!
             if isHoldRecordingActive {

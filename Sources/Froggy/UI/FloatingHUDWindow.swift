@@ -39,21 +39,34 @@ final class FloatingHUDWindow: NSObject {
     func update(state: HUDState) {
         guard let panel = panel else { return }
 
-        // Обновляем состояние через ViewModel без пересоздания View!
-        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-            viewModel.state = state
+        // Если это просто изменение уровня звука во время прослушивания —
+        // мгновенно передаём уровень во ViewModel без тяжёлого пересчёта размера окна
+        let isLevelUpdateOnly: Bool
+        switch (viewModel.state, state) {
+        case (.listening(_, let m1), .listening(_, let m2)):
+            isLevelUpdateOnly = (m1 == m2)
+        default:
+            isLevelUpdateOnly = false
         }
 
-        if let hosting = hostingView {
-            panel.layoutIfNeeded()
-            let fittingSize = hosting.fittingSize
-            if fittingSize.width > 50 && fittingSize.height > 20 {
-                panel.setContentSize(fittingSize)
-                if let screen = NSScreen.main {
-                    let screenFrame = screen.visibleFrame
-                    let x = screenFrame.midX - (fittingSize.width / 2.0)
-                    let y = screenFrame.minY + 60.0
-                    panel.setFrameOrigin(NSPoint(x: x, y: y))
+        if isLevelUpdateOnly {
+            viewModel.state = state
+        } else {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                viewModel.state = state
+            }
+
+            if let hosting = hostingView {
+                panel.layoutIfNeeded()
+                let fittingSize = hosting.fittingSize
+                if fittingSize.width > 50 && fittingSize.height > 20 {
+                    panel.setContentSize(fittingSize)
+                    if let screen = NSScreen.main {
+                        let screenFrame = screen.visibleFrame
+                        let x = screenFrame.midX - (fittingSize.width / 2.0)
+                        let y = screenFrame.minY + 60.0
+                        panel.setFrameOrigin(NSPoint(x: x, y: y))
+                    }
                 }
             }
         }

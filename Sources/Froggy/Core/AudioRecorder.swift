@@ -14,8 +14,8 @@ final class AudioRecorder: ObservableObject {
     private var smoothedLevel: Float = 0.0
 
     private func updateSmoothedLevel(_ rawLevel: Float) {
-        // Быстрый отклик на речь (0.82) и органичное затухание (0.32)
-        let factor: Float = rawLevel > smoothedLevel ? 0.82 : 0.32
+        // Мгновенный отклик на голос (0.88) и упругое органичное затухание (0.35)
+        let factor: Float = rawLevel > smoothedLevel ? 0.88 : 0.35
         smoothedLevel = smoothedLevel * (1.0 - factor) + rawLevel * factor
         audioLevel = smoothedLevel
     }
@@ -92,11 +92,11 @@ final class AudioRecorder: ObservableObject {
                     sumOfSquares += data[i] * data[i]
                 }
                 let rms = sqrtf(sumOfSquares / Float(frameLength))
-                // Высокая чувствительность к живой речи:
-                // Вычитаем тишину (фоновый шум) и применяем нелинейную кривую чувствительности
-                let effectiveRMS = max(0.0, rms - 0.002)
-                let normalizedLevel = min(1.0, powf(effectiveRMS * 14.0, 0.72))
-                Task { @MainActor in
+                // Сверхвысокая чувствительность к живой речи:
+                // Откликается даже на спокойную речь и тихие согласные звуки
+                let effectiveRMS = max(0.0, rms - 0.001)
+                let normalizedLevel = min(1.0, powf(effectiveRMS * 22.0, 0.60))
+                DispatchQueue.main.async {
                     self?.updateSmoothedLevel(normalizedLevel)
                 }
             }
