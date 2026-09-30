@@ -11,6 +11,7 @@ final class AppCoordinator: ObservableObject {
     private let audioRecorder = AudioRecorder()
     private let hotkeyManager = HotkeyManager.shared
     private var cancellables = Set<AnyCancellable>()
+    private var recordingStartTime: TimeInterval = 0
 
     private init() {
         setupBindings()
@@ -60,6 +61,7 @@ final class AppCoordinator: ObservableObject {
 
         do {
             try audioRecorder.startRecording()
+            recordingStartTime = ProcessInfo.processInfo.systemUptime
             isListening = true
             hotkeyManager.isRecordingActive = true
             FloatingHUDWindow.shared.update(state: .listening(level: 0))
@@ -79,6 +81,15 @@ final class AppCoordinator: ObservableObject {
 
         guard let audioURL = audioRecorder.stopRecording() else {
             FloatingHUDWindow.shared.hide()
+            return
+        }
+
+        // Если запись длилась меньше 0.4 секунды — это случайное нажатие, закрываем тихо без ошибок
+        let duration = ProcessInfo.processInfo.systemUptime - recordingStartTime
+        if duration < 0.4 {
+            print("[Froggy] AppCoordinator: recording too short (\(String(format: "%.2f", duration))s), cancelling quietly")
+            FloatingHUDWindow.shared.hide(delay: 0.1)
+            audioRecorder.cleanup(fileURL: audioURL)
             return
         }
 

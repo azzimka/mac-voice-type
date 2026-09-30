@@ -9,11 +9,11 @@ enum GroqError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "API ключ Groq не установлен"
-        case .invalidResponse(let code, let msg):
-            return "Groq API (\(code)): \(msg)"
+            return "Укажите Groq API ключ"
+        case .invalidResponse(_, let rawMsg):
+            return GroqClient.formatErrorMessage(rawMsg)
         case .decodingError:
-            return "Ошибка разбора ответа Groq"
+            return "Ошибка обработки ответа"
         case .emptyTranscription:
             return "Речь не распознана"
         }
@@ -28,6 +28,40 @@ final class GroqClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         self.session = URLSession(configuration: config)
+    }
+
+    static func formatErrorMessage(_ raw: String) -> String {
+        if let data = raw.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let errorObj = json["error"] as? [String: Any] {
+            if let code = errorObj["code"] as? String {
+                switch code {
+                case "audio_too_short":
+                    return "Слишком короткая запись"
+                case "invalid_api_key":
+                    return "Неверный Groq API ключ"
+                case "rate_limit_exceeded":
+                    return "Превышен лимит запросов к Groq"
+                default:
+                    break
+                }
+            }
+            if let msg = errorObj["message"] as? String {
+                if msg.contains("too short") {
+                    return "Слишком короткая запись"
+                }
+                return msg
+            }
+        }
+
+        if raw.contains("audio_too_short") || raw.contains("too short") {
+            return "Слишком короткая запись"
+        }
+        if raw.contains("invalid_api_key") {
+            return "Неверный Groq API ключ"
+        }
+
+        return "Ошибка распознавания речи"
     }
 
     func transcribeAudio(fileURL: URL, apiKey: String, model: String = "whisper-large-v3-turbo") async throws -> String {
