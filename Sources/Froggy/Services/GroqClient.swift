@@ -56,6 +56,7 @@ final class GroqClient {
         appendField("model", model)
         appendField("response_format", "json")
         appendField("temperature", "0.0")
+        appendField("prompt", "O'zbekcha, русский, English, multi-language speech, IT terms, code-switching.")
 
         let filename = fileURL.lastPathComponent
         let mimeType = filename.hasSuffix(".wav") ? "audio/wav" : "audio/m4a"
@@ -102,13 +103,17 @@ final class GroqClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are a strict grammar and punctuation corrector for Russian and English.
-        RULES:
-        1. Fix grammar, spelling, typos, and missing punctuation.
-        2. Keep ALL original words, phrasing, slang, and word order.
-        3. Do NOT paraphrase, rewrite, summarize, or add words.
-        4. If text is already correct, return it unchanged.
-        5. Output ONLY the corrected text. No quotes, no explanation.
+        You are an expert multilingual grammar, spelling, and punctuation corrector.
+        You natively support all world languages, especially Uzbek (O'zbek tili in Latin and Cyrillic script), Russian, and English, including natural mixed multilingual speech (code-switching).
+
+        CRITICAL RULES:
+        1. Fix only obvious typos, spelling mistakes, and missing punctuation (periods, commas, question marks).
+        2. NEVER translate words into another language. Every word must stay in its original spoken language.
+        3. If the user mixes Uzbek, Russian, and English in one sentence, KEEP all words in their respective languages.
+        4. Preserve all original slang, conversational phrasing, technical terms (e.g. Git, push, branch, deploy, link), and exact word order.
+        5. For Uzbek words in Latin script, preserve proper apostrophes and letters (o', g', sh, ch).
+        6. Do NOT rewrite, summarize, explain, or paraphrase.
+        7. Output ONLY the clean corrected text. No quotes, no markdown fences, no comments.
         """
 
         let payload: [String: Any] = [
