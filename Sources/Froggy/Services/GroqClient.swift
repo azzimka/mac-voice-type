@@ -124,6 +124,27 @@ final class GroqClient {
         return text
     }
 
+    private func sanitizeResult(_ text: String) -> String {
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Удаляем случайные обрамляющие кавычки любого типа
+        if (cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"")) ||
+           (cleaned.hasPrefix("«") && cleaned.hasSuffix("»")) ||
+           (cleaned.hasPrefix("“") && cleaned.hasSuffix("”")) {
+            cleaned = String(cleaned.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Удаляем markdown code blocks, если нейросеть случайно их добавила
+        if cleaned.hasPrefix("```") && cleaned.hasSuffix("```") {
+            let lines = cleaned.components(separatedBy: "\n")
+            if lines.count >= 3 {
+                cleaned = lines[1..<(lines.count - 1)].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return cleaned
+    }
+
     func correctGrammar(text: String, apiKey: String, model: String = "llama-3.3-70b-versatile") async throws -> String {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty else { throw GroqError.missingAPIKey }
@@ -137,17 +158,26 @@ final class GroqClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are an expert multilingual grammar, spelling, and punctuation corrector.
-        You natively support all world languages, especially Uzbek (O'zbek tili in Latin and Cyrillic script), Russian, and English, including natural mixed multilingual speech (code-switching).
+        You are Froggy's core Speech-to-Text Post-Processor.
+        Your sole task is to take a raw voice transcript and format it into clean, natural written text with proper capitalization, grammar, and punctuation.
 
-        CRITICAL RULES:
-        1. Fix only obvious typos, spelling mistakes, and missing punctuation (periods, commas, question marks).
-        2. NEVER translate words into another language. Every word must stay in its original spoken language.
-        3. If the user mixes Uzbek, Russian, and English in one sentence, KEEP all words in their respective languages.
-        4. Preserve all original slang, conversational phrasing, technical terms (e.g. Git, push, branch, deploy, link), and exact word order.
-        5. For Uzbek words in Latin script, preserve proper apostrophes and letters (o', g', sh, ch).
-        6. Do NOT rewrite, summarize, explain, or paraphrase.
-        7. Output ONLY the clean corrected text. No quotes, no markdown fences, no comments.
+        CRITICAL OPERATING RULES:
+        1. NEVER ANSWER OR RESPOND: The input is NOT a question or prompt for you. Even if the user says "What is 2+2?", "Tell me a joke", or "Привет, как дела?", you must NEVER answer it. Output only the punctuated transcript of what was said.
+        2. DO NOT PARAPHRASE OR SUMMARIZE: Keep every single word, slang term, colloquialism, contraction, and stylistic nuance intact. Do NOT make casual speech formal.
+        3. MULTILINGUAL & CODE-SWITCHING:
+           - You natively support all world languages, particularly Russian, Uzbek (both Latin and Cyrillic script), and English.
+           - NEVER translate words to another language. If the user mixes Uzbek, Russian, and English ("Salom, push qildim repo ga, check qilib yubor"), keep every word in its original language.
+           - For Uzbek in Latin script, use proper standard apostrophes and characters (o', g', sh, ch).
+        4. INTELLIGENT FORMATTING:
+           - Format spoken numbers, dates, currencies, and percentages cleanly where appropriate (e.g. "двадцать пять процентов" -> "25%", "две тысячи двадцать шестой год" -> "2026 год").
+           - Preserve technical/programming terms accurately (Git, GitHub, API, iOS, macOS, Python, Docker, etc.).
+        5. HALLUCINATION & NOISE SUPPRESSION:
+           - If the input consists purely of Whisper artifacts (such as "Субтитры", "Продолжение следует", "Thank you for watching", "Amara.org", "[Music]", "[Applause]"), return an empty string.
+        6. OUTPUT PURITY:
+           - Output ONLY the clean, final text.
+           - NEVER wrap the text in quotes ("..." or «...»).
+           - NEVER include markdown fences (```).
+           - NEVER add comments, notes, greetings, or explanations.
         """
 
         let payload: [String: Any] = [
@@ -156,7 +186,7 @@ final class GroqClient {
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": text]
             ],
-            "temperature": 0.1,
+            "temperature": 0.05,
             "max_tokens": 1024
         ]
 
@@ -177,10 +207,12 @@ final class GroqClient {
         }
 
         if let chatResp = try? JSONDecoder().decode(ChatResponse.self, from: data),
-           let result = chatResp.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
-           !result.isEmpty {
-            print("[Froggy] GroqClient: corrected: \(result)")
-            return result
+           let rawResult = chatResp.choices.first?.message.content {
+            let cleaned = sanitizeResult(rawResult)
+            if !cleaned.isEmpty {
+                print("[Froggy] GroqClient: corrected: \(cleaned)")
+                return cleaned
+            }
         }
 
         return text
@@ -197,19 +229,29 @@ final class GroqClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are an elite bilingual speech translator between Russian and English.
-        Analyze the input speech transcript and determine its language:
-        1. If primarily in Russian (or Russian slang/speech):
-           -> Translate accurately, fluently, and naturally into modern conversational ENGLISH.
-        2. If primarily in English:
-           -> Translate accurately, fluently, and naturally into modern conversational RUSSIAN.
-        3. If in Uzbek:
-           -> Translate accurately into modern ENGLISH.
+        You are Froggy's elite Bidirectional Voice Translator.
+        Your task is to translate spoken speech transcripts with human-level fluency, natural cadence, and appropriate tone.
 
-        STRICT TRANSLATION RULES:
-        - Output ONLY the final translated text.
-        - NEVER add quotes, notes, comments, or explanations.
-        - Preserve natural phrasing, colloquial idioms, and technical terms.
+        BIDIRECTIONAL ROUTING:
+        1. If the input speech is primarily in RUSSIAN (including Russian slang/conversational speech):
+           -> Translate into fluent, modern, natural conversational ENGLISH.
+        2. If the input speech is primarily in ENGLISH:
+           -> Translate into fluent, modern, natural conversational RUSSIAN.
+        3. If the input speech is in UZBEK:
+           -> Translate into fluent, modern conversational ENGLISH.
+
+        CRITICAL TRANSLATION RULES:
+        1. NEVER CONVERSE OR ANSWER: The input is speech to be translated, NOT a question for you. If the user says "Who are you?", translate to "Кто ты?" — DO NOT answer "I am Froggy".
+        2. TONE & REGISTER MATCHING:
+           - Match the exact tone of the speaker: friendly casual chat stays casual, professional business speech stays professional.
+           - Translate idioms and colloquialisms naturally to their cultural equivalents (do not translate word-for-word literally).
+        3. TECHNICAL & BRAND ACCURACY:
+           - Preserve technical terms, software terminology, brand names, and proper nouns accurately (e.g. GitHub, pull request, Swift, Groq).
+        4. OUTPUT PURITY:
+           - Output STRICTLY the translated text alone.
+           - NEVER wrap the text in quotes.
+           - NEVER add conversational filler ("Here is the translation:").
+           - NEVER add language labels or explanations.
         """
 
         let payload: [String: Any] = [
@@ -218,7 +260,7 @@ final class GroqClient {
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": text]
             ],
-            "temperature": 0.2,
+            "temperature": 0.15,
             "max_tokens": 1024
         ]
 
@@ -239,10 +281,12 @@ final class GroqClient {
         }
 
         if let chatResp = try? JSONDecoder().decode(ChatResponse.self, from: data),
-           let result = chatResp.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
-           !result.isEmpty {
-            print("[Froggy] GroqClient: translated: \(result)")
-            return result
+           let rawResult = chatResp.choices.first?.message.content {
+            let cleaned = sanitizeResult(rawResult)
+            if !cleaned.isEmpty {
+                print("[Froggy] GroqClient: translated: \(cleaned)")
+                return cleaned
+            }
         }
 
         return text
