@@ -124,8 +124,15 @@ final class GroqClient {
         return text
     }
 
+    static let defaultChatModel = "qwen/qwen3.8-27b"
+
     private func sanitizeResult(_ text: String) -> String {
         var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Удаляем теги рассуждений, если модель их вернула
+        if let thinkEnd = cleaned.range(of: "</think>") {
+            cleaned = String(cleaned[thinkEnd.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
         // Удаляем случайные обрамляющие кавычки любого типа
         if (cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"")) ||
@@ -145,7 +152,7 @@ final class GroqClient {
         return cleaned
     }
 
-    func correctGrammar(text: String, apiKey: String, model: String = "llama-3.3-70b-versatile") async throws -> String {
+    func correctGrammar(text: String, apiKey: String, model: String = GroqClient.defaultChatModel) async throws -> String {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty else { throw GroqError.missingAPIKey }
 
@@ -194,7 +201,8 @@ final class GroqClient {
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("[Froggy] GroqClient: grammar correction failed, returning raw text")
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[Froggy] GroqClient: grammar correction failed (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorText)")
             return text
         }
 
@@ -218,7 +226,7 @@ final class GroqClient {
         return text
     }
 
-    func translateText(text: String, apiKey: String, model: String = "llama-3.3-70b-versatile") async throws -> String {
+    func translateText(text: String, apiKey: String, model: String = GroqClient.defaultChatModel) async throws -> String {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty else { throw GroqError.missingAPIKey }
 
@@ -268,8 +276,9 @@ final class GroqClient {
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("[Froggy] GroqClient: translation failed, falling back to raw text")
-            return text
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[Froggy] GroqClient: translation failed (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorText)")
+            throw GroqError.invalidResponse(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: errorText)
         }
 
         struct ChatResponse: Codable {

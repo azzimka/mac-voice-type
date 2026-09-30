@@ -46,7 +46,7 @@ final class OnboardingViewModel: ObservableObject {
         statusIsSuccess = false
         Task {
             do {
-                _ = try await GroqClient.shared.correctGrammar(text: "Test", apiKey: apiKey)
+                _ = try await GroqClient.shared.correctGrammar(text: "Test connection to API", apiKey: apiKey)
                 self.statusMessage = "✓ Groq API работает!"
                 self.statusIsSuccess = true
             } catch {
