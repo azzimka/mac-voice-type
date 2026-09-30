@@ -11,6 +11,14 @@ final class AudioRecorder: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var currentFileURL: URL?
+    private var smoothedLevel: Float = 0.0
+
+    private func updateSmoothedLevel(_ rawLevel: Float) {
+        // Attack/Decay фильтр: быстрый отклик на голос (0.65), мягкое плавное затухание (0.2)
+        let factor: Float = rawLevel > smoothedLevel ? 0.65 : 0.2
+        smoothedLevel = smoothedLevel * (1.0 - factor) + rawLevel * factor
+        audioLevel = smoothedLevel
+    }
 
     /// Запрос разрешения на микрофон
     func requestPermission() async -> Bool {
@@ -84,9 +92,9 @@ final class AudioRecorder: ObservableObject {
                     sumOfSquares += data[i] * data[i]
                 }
                 let rms = sqrtf(sumOfSquares / Float(frameLength))
-                let normalizedLevel = min(1.0, rms * 5.0) // Усиливаем для визуализации
+                let normalizedLevel = min(1.0, rms * 6.0)
                 Task { @MainActor in
-                    self?.audioLevel = normalizedLevel
+                    self?.updateSmoothedLevel(normalizedLevel)
                 }
             }
 
@@ -136,6 +144,7 @@ final class AudioRecorder: ObservableObject {
         self.audioFile = nil
         self.isRecording = false
         self.audioLevel = 0.0
+        self.smoothedLevel = 0.0
 
         if let url = currentFileURL {
             let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0

@@ -5,6 +5,8 @@ import SwiftUI
 final class FloatingHUDWindow: NSObject {
     static let shared = FloatingHUDWindow()
     private var panel: NSPanel?
+    private let viewModel = FloatingHUDViewModel()
+    private var hostingView: NSHostingView<FloatingHUDView>?
 
     private override init() {
         super.init()
@@ -25,24 +27,35 @@ final class FloatingHUDWindow: NSObject {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
+
+        let contentView = FloatingHUDView(viewModel: viewModel)
+        let hosting = NSHostingView(rootView: contentView)
+        self.hostingView = hosting
+        panel.contentView = hosting
+
         self.panel = panel
     }
 
     func update(state: HUDState) {
         guard let panel = panel else { return }
-        let contentView = FloatingHUDView(state: state)
-        let hosting = NSHostingView(rootView: AnyView(contentView))
-        panel.contentView = hosting
-        panel.layoutIfNeeded()
 
-        let fittingSize = hosting.fittingSize
-        panel.setContentSize(fittingSize)
+        // Обновляем состояние через ViewModel без пересоздания View!
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+            viewModel.state = state
+        }
 
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - (fittingSize.width / 2.0)
-            let y = screenFrame.minY + 60.0
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        if let hosting = hostingView {
+            panel.layoutIfNeeded()
+            let fittingSize = hosting.fittingSize
+            if fittingSize.width > 50 && fittingSize.height > 20 {
+                panel.setContentSize(fittingSize)
+                if let screen = NSScreen.main {
+                    let screenFrame = screen.visibleFrame
+                    let x = screenFrame.midX - (fittingSize.width / 2.0)
+                    let y = screenFrame.minY + 60.0
+                    panel.setFrameOrigin(NSPoint(x: x, y: y))
+                }
+            }
         }
 
         if !panel.isVisible {

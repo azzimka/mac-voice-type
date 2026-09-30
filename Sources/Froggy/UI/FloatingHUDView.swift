@@ -7,30 +7,35 @@ enum HUDState: Equatable {
     case error(message: String)
 }
 
+@MainActor
+final class FloatingHUDViewModel: ObservableObject {
+    @Published var state: HUDState = .completed
+}
+
 struct FloatingHUDView: View {
-    let state: HUDState
+    @ObservedObject var viewModel: FloatingHUDViewModel
 
     var body: some View {
         HStack(spacing: 12) {
-            switch state {
+            switch viewModel.state {
             case .listening(let level):
                 ZStack {
                     Circle()
-                        .fill(Color.green.opacity(0.3))
-                        .frame(width: 24, height: 24)
-                        .scaleEffect(1.0 + CGFloat(level) * 0.4)
-                        .animation(.easeInOut(duration: 0.2), value: level)
+                        .fill(Color.red.opacity(0.18))
+                        .frame(width: 26, height: 26)
+                        .scaleEffect(1.0 + CGFloat(level) * 0.35)
+                        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.6), value: level)
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.red)
                 }
                 WaveformView(audioLevel: level)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Froggy слушает...")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
                     Text("Нажмите ⌘ для вставки")
-                        .font(.system(size: 10))
+                        .font(.system(size: 10, weight: .regular))
                         .foregroundColor(.secondary)
                 }
 
