@@ -3,7 +3,7 @@
 > Диктуйте текст в любое поле ввода по двойному нажатию **`⌘ Command`**. Сверхбыстрая расшифровка через **Groq Whisper** (~200 мс) и автоматическое исправление ошибок через **Llama 3.3**.
 
 <p align="center">
-  <a href="https://github.com/azzimka/mac-voice-type/releases/latest/download/MacVoiceType.dmg">
+  <a href="https://github.com/azzimka/mac-voice-type/raw/main/MacVoiceType.dmg">
     <img src="https://img.shields.io/badge/Скачать%20для%20macOS-MacVoiceType.dmg-black?style=for-the-badge&logo=apple" alt="Download DMG" />
   </a>
 </p>
@@ -12,7 +12,7 @@
 
 ## ⚡ Как пользоваться за 1 минуту
 
-1. **[Скачайте `MacVoiceType.dmg`](https://github.com/azzimka/mac-voice-type/releases/latest/download/MacVoiceType.dmg)** и перетащите иконку в **«Программы» (Applications)**.
+1. **[Скачайте `MacVoiceType.dmg`](https://github.com/azzimka/mac-voice-type/raw/main/MacVoiceType.dmg)** и перетащите иконку в **«Программы» (Applications)**.
 2. Откройте приложение ➔ кликните по иконке микрофона в строке меню ➔ **«Настройки...»** и вставьте бесплатный API-ключ от [console.groq.com](https://console.groq.com/keys).
 3. Разрешите доступ к **Микрофону** и **Универсальному доступу** (Accessibility).
 
