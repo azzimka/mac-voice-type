@@ -77,11 +77,10 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header with logo
-            VStack(spacing: 8) {
-                Text("🐸")
-                    .font(.system(size: 56))
+            VStack(spacing: 12) {
+                FroggyLogoView()
                 Text("Froggy")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
                 Text("Голос → Текст за доли секунды")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.secondary)
@@ -225,5 +224,30 @@ struct PermissionRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.ultraThinMaterial)
         )
+    }
+}
+
+struct FroggyLogoView: View {
+    var body: some View {
+        if let path = Bundle.main.path(forResource: "AppIcon", ofType: "jpg"),
+           let img = NSImage(contentsOfFile: path) {
+            Image(nsImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        } else if let appIcon = NSApp.applicationIconImage {
+            Image(nsImage: appIcon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        } else {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 64))
+                .foregroundColor(.green)
+        }
     }
 }
