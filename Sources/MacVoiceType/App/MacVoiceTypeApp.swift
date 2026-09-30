@@ -17,8 +17,8 @@ struct MacVoiceTypeApp: App {
 
             Divider()
 
-            SettingsLink {
-                Text("Настройки...")
+            Button("Настройки...") {
+                SettingsWindowController.shared.show()
             }
             .keyboardShortcut(",", modifiers: .command)
 
@@ -28,10 +28,6 @@ struct MacVoiceTypeApp: App {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)
-        }
-
-        Settings {
-            SettingsView()
         }
     }
 }

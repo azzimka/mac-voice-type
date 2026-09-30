@@ -17,5 +17,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 AVCaptureDevice.requestAccess(for: .audio) { _ in }
             }
         }
+
+        // Если ключ еще не введен, сразу открываем окно настроек на экране!
+        if KeychainHelper.getAPIKey() == nil || KeychainHelper.getAPIKey()?.isEmpty == true {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                SettingsWindowController.shared.show()
+            }
+        } else {
+            // Если ключ уже есть, показываем приветственную подсказку на долю секунды
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                FloatingHUDWindow.shared.update(state: .completed)
+                FloatingHUDWindow.shared.hide(delay: 1.5)
+            }
+        }
+    }
+
+    /// Когда пользователь кликает по приложению в Finder или Dock - открываем окно настроек
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        SettingsWindowController.shared.show()
+        return true
     }
 }
