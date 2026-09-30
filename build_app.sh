@@ -73,5 +73,28 @@ EOF
 
 codesign --force --deep -s - -r='designated => identifier "com.froggy.app"' "$APP_DIR"
 
+echo "📦 Создание стильного Drag-and-Drop Froggy.dmg..."
+rm -rf /tmp/froggy_dmg_src && mkdir -p /tmp/froggy_dmg_src
+cp -R "$APP_DIR" /tmp/froggy_dmg_src/
+rm -f Froggy.dmg
+
+create-dmg \
+  --volname "Froggy Installer" \
+  --volicon "$RESOURCES_DIR/AppIcon.icns" \
+  --background "Resources/dmg_background.png" \
+  --window-pos 200 120 \
+  --window-size 600 400 \
+  --icon-size 120 \
+  --icon "Froggy.app" 140 190 \
+  --hide-extension "Froggy.app" \
+  --app-drop-link 460 190 \
+  --no-internet-enable \
+  --overwrite \
+  "Froggy.dmg" \
+  "/tmp/froggy_dmg_src" 2>/dev/null || true
+
+rm -rf /tmp/froggy_dmg_src
+
 echo "✅ Готово! Приложение: $APP_DIR"
+echo "📦 Установщик: Froggy.dmg"
 echo "👉 Запуск: open Froggy.app"
