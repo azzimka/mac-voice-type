@@ -20,8 +20,9 @@ struct FloatingHUDView: View {
                         .frame(width: 24, height: 24)
                         .scaleEffect(1.0 + CGFloat(level) * 0.4)
                         .animation(.easeInOut(duration: 0.2), value: level)
-                    Text("🐸")
+                    Image(systemName: "mic.fill")
                         .font(.system(size: 14))
+                        .foregroundColor(.red)
                 }
                 WaveformView(audioLevel: level)
                 VStack(alignment: .leading, spacing: 2) {
