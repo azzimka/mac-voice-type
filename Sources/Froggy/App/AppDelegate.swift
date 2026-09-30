@@ -8,8 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Запуск координатора
         AppCoordinator.shared.start()
 
-        // Проверка Accessibility (если нет — показывается системный диалог)
-        let hasAccessibility = TextInjector.checkAccessibilityPermission(prompt: true)
+        // Проверка Accessibility без навязчивого системного диалога
+        let hasAccessibility = TextInjector.checkAccessibilityPermission(prompt: false)
         print("[Froggy] Accessibility: \(hasAccessibility)")
 
         // Запрос на микрофон

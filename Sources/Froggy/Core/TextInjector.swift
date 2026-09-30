@@ -16,9 +16,9 @@ final class TextInjector {
             return
         }
 
-        guard TextInjector.checkAccessibilityPermission(prompt: false) else {
-            print("[Froggy] TextInjector: Accessibility permission NOT granted, cannot paste")
-            return
+        let isTrusted = TextInjector.checkAccessibilityPermission(prompt: false)
+        if !isTrusted {
+            print("[Froggy] TextInjector: warning - Accessibility permission check returned false, attempting paste anyway")
         }
 
         let pasteboard = NSPasteboard.general

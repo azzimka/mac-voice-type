@@ -71,7 +71,7 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
 </plist>
 EOF
 
-codesign --force --deep --sign - "$APP_DIR"
+codesign --force --deep -s - -r='designated => identifier "com.froggy.app"' "$APP_DIR"
 
 echo "✅ Готово! Приложение: $APP_DIR"
 echo "👉 Запуск: open Froggy.app"

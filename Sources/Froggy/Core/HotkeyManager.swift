@@ -28,9 +28,7 @@ final class HotkeyManager: ObservableObject {
         print("[Froggy] HotkeyManager: Accessibility permission = \(hasAccess)")
 
         if !hasAccess {
-            print("[Froggy] HotkeyManager: WARNING - No Accessibility, global hotkeys won't work!")
-            // Запрашиваем с промптом
-            _ = TextInjector.checkAccessibilityPermission(prompt: true)
+            print("[Froggy] HotkeyManager: Accessibility not yet granted, monitoring will activate once granted")
         }
 
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in

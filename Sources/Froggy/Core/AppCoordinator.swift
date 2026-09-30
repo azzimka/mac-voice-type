@@ -57,13 +57,6 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        guard TextInjector.checkAccessibilityPermission(prompt: false) else {
-            print("[Froggy] AppCoordinator: no Accessibility permission!")
-            FloatingHUDWindow.shared.update(state: .error(message: "Включите Универсальный доступ"))
-            FloatingHUDWindow.shared.hide(delay: 2.5)
-            _ = TextInjector.checkAccessibilityPermission(prompt: true)
-            return
-        }
 
         do {
             try audioRecorder.startRecording()
