@@ -135,7 +135,7 @@ final class AppCoordinator: ObservableObject {
                 let successMessage: String
 
                 if currentMode == .translation {
-                    FloatingHUDWindow.shared.update(state: .processing(stage: "Перевожу RU ⇄ EN...", mode: .translation))
+                    FloatingHUDWindow.shared.update(state: .processing(stage: "Перевожу...", mode: .translation))
                     finalText = try await GroqClient.shared.translateText(text: rawText, apiKey: apiKey)
                     successMessage = "Переведено!"
                 } else {

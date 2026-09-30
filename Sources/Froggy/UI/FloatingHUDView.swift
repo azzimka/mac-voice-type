@@ -38,23 +38,15 @@ struct FloatingHUDView: View {
                     }
                     WaveformView(audioLevel: level, isTranslation: true)
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Froggy Переводчик")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                            Text("RU ⇄ EN")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color.blue.opacity(0.18)))
-                                .foregroundColor(Color(red: 0.0, green: 0.55, blue: 1.0))
-                        }
+                        Text("Froggy Переводчик")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.primary)
                         Text("Отпустите ⌘ для перевода")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                 } else {
-                    // РЕЖИМ ДИКТОВКИ: Классический зеленый Froggy и красный микрофон
+                    // РЕЖИМ ДИКТОВКИ: Красный микрофон и красная волна
                     ZStack {
                         Circle()
                             .fill(Color.red.opacity(0.18))
@@ -76,23 +68,13 @@ struct FloatingHUDView: View {
                     }
                 }
 
-            case .processing(let stage, let mode):
+            case .processing(let stage, _):
                 ProgressView()
                     .scaleEffect(0.8)
                     .frame(width: 20, height: 20)
-                HStack(spacing: 6) {
-                    Text(stage)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(.primary)
-                    if mode == .translation {
-                        Text("RU ⇄ EN")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.blue.opacity(0.18)))
-                            .foregroundColor(Color.blue)
-                    }
-                }
+                Text(stage)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.primary)
 
             case .completed(let msg):
                 Image(systemName: "checkmark.circle.fill")
