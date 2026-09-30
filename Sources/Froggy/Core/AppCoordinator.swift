@@ -2,7 +2,7 @@ import Cocoa
 import Combine
 import SwiftUI
 
-/// Главный координатор приложения: связывает горячие клавиши, запись, ИИ и интерфейс
+/// Главный координатор: связывает горячие клавиши, запись, Groq API и HUD
 @MainActor
 final class AppCoordinator: ObservableObject {
     static let shared = AppCoordinator()
@@ -17,9 +17,10 @@ final class AppCoordinator: ObservableObject {
     }
 
     func start() {
+        print("[Froggy] AppCoordinator: starting...")
         hotkeyManager.startMonitoring()
 
-        // Подписываемся на обновление звуковой волны во время записи
+        // Подписываемся на обновление волны
         audioRecorder.$audioLevel
             .receive(on: DispatchQueue.main)
             .sink { [weak self] level in
@@ -27,18 +28,18 @@ final class AppCoordinator: ObservableObject {
                 FloatingHUDWindow.shared.update(state: .listening(level: level))
             }
             .store(in: &cancellables)
+
+        print("[Froggy] AppCoordinator: ready! Double-tap ⌘ to start dictation")
     }
 
     private func setupBindings() {
-        // Двойной тап Command -> Начать запись
         hotkeyManager.onDoubleTapCommand = { [weak self] in
             Task { @MainActor in
                 self?.startDictation()
             }
         }
 
-        // Повторный тап Command во время записи -> Остановить и вставить
-        hotkeyManager.onSingleTapWhileRecording = { [weak self] in
+        hotkeyManager.onStopRecording = { [weak self] in
             Task { @MainActor in
                 self?.stopDictationAndProcess()
             }
@@ -48,11 +49,19 @@ final class AppCoordinator: ObservableObject {
     func startDictation() {
         guard !isListening else { return }
 
-        // Проверяем наличие API-ключа
         guard let apiKey = KeychainHelper.getAPIKey(), !apiKey.isEmpty else {
-            FloatingHUDWindow.shared.update(state: .error(message: "Укажите Groq API Key в настройках"))
+            print("[Froggy] AppCoordinator: no API key!")
+            FloatingHUDWindow.shared.update(state: .error(message: "Укажите Groq API Key"))
             FloatingHUDWindow.shared.hide(delay: 2.5)
-            openSettings()
+            SettingsWindowController.shared.show()
+            return
+        }
+
+        guard TextInjector.checkAccessibilityPermission(prompt: false) else {
+            print("[Froggy] AppCoordinator: no Accessibility permission!")
+            FloatingHUDWindow.shared.update(state: .error(message: "Включите Универсальный доступ"))
+            FloatingHUDWindow.shared.hide(delay: 2.5)
+            _ = TextInjector.checkAccessibilityPermission(prompt: true)
             return
         }
 
@@ -61,9 +70,11 @@ final class AppCoordinator: ObservableObject {
             isListening = true
             hotkeyManager.isRecordingActive = true
             FloatingHUDWindow.shared.update(state: .listening(level: 0))
+            print("[Froggy] AppCoordinator: dictation STARTED")
         } catch {
+            print("[Froggy] AppCoordinator: failed to start recording: \(error)")
             FloatingHUDWindow.shared.update(state: .error(message: error.localizedDescription))
-            FloatingHUDWindow.shared.hide(delay: 2.0)
+            FloatingHUDWindow.shared.hide(delay: 2.5)
         }
     }
 
@@ -71,28 +82,26 @@ final class AppCoordinator: ObservableObject {
         guard isListening else { return }
         isListening = false
         hotkeyManager.isRecordingActive = false
+        print("[Froggy] AppCoordinator: dictation STOPPED, processing...")
 
         guard let audioURL = audioRecorder.stopRecording() else {
             FloatingHUDWindow.shared.hide()
             return
         }
 
-        FloatingHUDWindow.shared.update(state: .processing(stage: "Транскрибация речи..."))
+        FloatingHUDWindow.shared.update(state: .processing(stage: "Расшифровка речи..."))
 
         Task {
             guard let apiKey = KeychainHelper.getAPIKey() else { return }
-            let whisperModel = UserDefaults.standard.string(forKey: "whisper_model") ?? "whisper-large-v3-turbo"
-            let enableGrammar = UserDefaults.standard.object(forKey: "enable_grammar_correction") as? Bool ?? true
 
             do {
-                // 1. Распознавание речи через Groq Whisper
+                // 1. STT — Groq Whisper
                 let rawText = try await GroqClient.shared.transcribeAudio(
                     fileURL: audioURL,
-                    apiKey: apiKey,
-                    model: whisperModel
+                    apiKey: apiKey
                 )
 
-                // Сразу же удаляем временный аудиофайл
+                // Удаляем временный файл сразу
                 audioRecorder.cleanup(fileURL: audioURL)
 
                 guard !rawText.isEmpty else {
@@ -101,29 +110,25 @@ final class AppCoordinator: ObservableObject {
                     return
                 }
 
-                // 2. Исправление грамматики через Groq LLM (если включено)
-                var finalText = rawText
-                if enableGrammar {
-                    FloatingHUDWindow.shared.update(state: .processing(stage: "Исправление грамматики..."))
-                    finalText = try await GroqClient.shared.correctGrammar(text: rawText, apiKey: apiKey)
-                }
+                // 2. Grammar fix — Groq LLM
+                FloatingHUDWindow.shared.update(state: .processing(stage: "Исправление ошибок..."))
+                let finalText = try await GroqClient.shared.correctGrammar(text: rawText, apiKey: apiKey)
 
-                // 3. Вставка текста в активное поле ввода
+                print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")
+
+                // 3. Вставка текста
                 TextInjector.shared.insertText(finalText)
 
-                // 4. Уведомление о завершении и скрытие
+                // 4. Готово!
                 FloatingHUDWindow.shared.update(state: .completed)
-                FloatingHUDWindow.shared.hide(delay: 0.6)
+                FloatingHUDWindow.shared.hide(delay: 0.8)
 
             } catch {
+                print("[Froggy] AppCoordinator: error: \(error)")
                 audioRecorder.cleanup(fileURL: audioURL)
                 FloatingHUDWindow.shared.update(state: .error(message: error.localizedDescription))
                 FloatingHUDWindow.shared.hide(delay: 2.5)
             }
         }
-    }
-
-    func openSettings() {
-        SettingsWindowController.shared.show()
     }
 }

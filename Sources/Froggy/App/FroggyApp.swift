@@ -1,30 +1,32 @@
 import SwiftUI
 
 @main
-struct MacVoiceTypeApp: App {
+struct FroggyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var coordinator = AppCoordinator.shared
 
     var body: some Scene {
-        MenuBarExtra("Mac Voice Type", systemImage: coordinator.isListening ? "waveform.circle.fill" : "mic.fill") {
-            Button(coordinator.isListening ? "Остановить запись (⌘)" : "Начать запись (2x ⌘)") {
-                if coordinator.isListening {
+        MenuBarExtra("Froggy", systemImage: coordinator.isListening ? "waveform.circle.fill" : "mic.fill") {
+            if coordinator.isListening {
+                Button("🎙️ Остановить и вставить (⌘)") {
                     coordinator.stopDictationAndProcess()
-                } else {
+                }
+            } else {
+                Button("🐸 Начать запись (2x ⌘)") {
                     coordinator.startDictation()
                 }
             }
 
             Divider()
 
-            Button("Настройки...") {
+            Button("⚙️ Настройки...") {
                 SettingsWindowController.shared.show()
             }
             .keyboardShortcut(",", modifiers: .command)
 
             Divider()
 
-            Button("Завершить Mac Voice Type") {
+            Button("Завершить Froggy") {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)

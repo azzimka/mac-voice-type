@@ -1,10 +1,7 @@
 import SwiftUI
 
-/// Анимированная звуковая волна в стиле Apple Intelligence
 struct WaveformView: View {
-    let audioLevel: Float // 0.0 ... 1.0
-
-    // 5 вертикальных полосок с разной чувствительностью
+    let audioLevel: Float
     private let barCount = 5
 
     var body: some View {
@@ -21,7 +18,6 @@ private struct WaveBar: View {
     let audioLevel: Float
     let index: Int
 
-    // Множитель высоты для создания органичной волны (по центру выше, по краям ниже)
     private var multiplier: CGFloat {
         switch index {
         case 0, 4: return 0.5
@@ -31,22 +27,19 @@ private struct WaveBar: View {
     }
 
     var body: some View {
-        let minHeight: CGFloat = 4
-        let maxHeight: CGFloat = 20
-        let targetHeight = max(minHeight, min(maxHeight, CGFloat(audioLevel) * maxHeight * multiplier + minHeight))
+        let minH: CGFloat = 4
+        let maxH: CGFloat = 20
+        let h = max(minH, min(maxH, CGFloat(audioLevel) * maxH * multiplier + minH))
 
         RoundedRectangle(cornerRadius: 2)
             .fill(
                 LinearGradient(
-                    colors: [
-                        Color(red: 0.2, green: 0.7, blue: 1.0),
-                        Color(red: 0.6, green: 0.3, blue: 1.0)
-                    ],
+                    colors: [Color.green, Color.green.opacity(0.6)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-            .frame(width: 3, height: targetHeight)
+            .frame(width: 3, height: h)
             .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.6), value: audioLevel)
     }
 }

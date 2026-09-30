@@ -1,13 +1,15 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Сборка MacVoiceType..."
+echo "🐸 Сборка Froggy..."
 
-# 1. Компиляция в Release конфигурации
+# Очистка кэша
+rm -rf .build
+
+# Компиляция в Release
 swift build -c release
 
-# 2. Создание структуры .app бандла
-APP_DIR="MacVoiceType.app"
+APP_DIR="Froggy.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
@@ -16,24 +18,41 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
 mkdir -p "$RESOURCES_DIR"
 
-# 3. Копирование скомпилированного бинарника
-BIN_PATH=$(swift build -c release --show-bin-path)/MacVoiceType
-cp "$BIN_PATH" "$MACOS_DIR/MacVoiceType"
+BIN_PATH=$(swift build -c release --show-bin-path)/Froggy
+cp "$BIN_PATH" "$MACOS_DIR/Froggy"
 
-# 4. Генерация Info.plist
+# Копируем лого
+if [ -f "Resources/AppIcon.jpg" ]; then
+    cp Resources/AppIcon.jpg "$RESOURCES_DIR/AppIcon.jpg"
+    # Конвертируем jpg в icns через sips
+    sips -s format png "Resources/AppIcon.jpg" --out "$RESOURCES_DIR/AppIcon.png" 2>/dev/null || true
+    mkdir -p "$RESOURCES_DIR/AppIcon.iconset"
+    for size in 16 32 64 128 256 512; do
+        sips -z $size $size "$RESOURCES_DIR/AppIcon.png" --out "$RESOURCES_DIR/AppIcon.iconset/icon_${size}x${size}.png" 2>/dev/null || true
+    done
+    for size in 16 32 64 128 256; do
+        double=$((size * 2))
+        sips -z $double $double "$RESOURCES_DIR/AppIcon.png" --out "$RESOURCES_DIR/AppIcon.iconset/icon_${size}x${size}@2x.png" 2>/dev/null || true
+    done
+    iconutil -c icns "$RESOURCES_DIR/AppIcon.iconset" -o "$RESOURCES_DIR/AppIcon.icns" 2>/dev/null || true
+    rm -rf "$RESOURCES_DIR/AppIcon.iconset" "$RESOURCES_DIR/AppIcon.png"
+fi
+
 cat <<EOF > "$CONTENTS_DIR/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>MacVoiceType</string>
+    <string>Froggy</string>
     <key>CFBundleIdentifier</key>
-    <string>com.macvoicetype.app</string>
+    <string>com.froggy.app</string>
     <key>CFBundleName</key>
-    <string>Mac Voice Type</string>
+    <string>Froggy</string>
     <key>CFBundleDisplayName</key>
-    <string>Mac Voice Type</string>
+    <string>Froggy</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -45,17 +64,14 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Mac Voice Type необходим доступ к микрофону для диктовки текста.</string>
+    <string>Froggy записывает вашу речь для перевода голоса в текст.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Mac Voice Type использует распознавание речи для перевода голоса в текст.</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Приложению требуется доступ для вставки текста в активное поле ввода.</string>
+    <string>Froggy использует распознавание речи.</string>
 </dict>
 </plist>
 EOF
 
-# 5. Ad-hoc подпись бинарника (для macOS Gatekeeper и прав доступа)
 codesign --force --deep --sign - "$APP_DIR"
 
-echo "✅ Успешно! Создано готовое приложение: $APP_DIR"
-echo "👉 Чтобы запустить, выполните: open MacVoiceType.app"
+echo "✅ Готово! Приложение: $APP_DIR"
+echo "👉 Запуск: open Froggy.app"

@@ -2,22 +2,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacVoiceType",
+    name: "Froggy",
     platforms: [
         .macOS(.v14)
     ],
     products: [
         .executable(
-            name: "MacVoiceType",
-            targets: ["MacVoiceType"]
+            name: "Froggy",
+            targets: ["Froggy"]
         )
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "MacVoiceType",
+            name: "Froggy",
             dependencies: [],
-            path: "Sources/MacVoiceType"
+            path: "Sources/Froggy",
+            resources: [
+                .copy("../../Resources/AppIcon.jpg")
+            ]
         )
     ]
 )
