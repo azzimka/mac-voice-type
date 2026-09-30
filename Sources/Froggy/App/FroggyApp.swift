@@ -8,12 +8,15 @@ struct FroggyApp: App {
     var body: some Scene {
         MenuBarExtra("Froggy", systemImage: coordinator.isListening ? "waveform.circle.fill" : "mic.fill") {
             if coordinator.isListening {
-                Button("🎙️ Остановить и вставить (⌘)") {
+                Button("⏹️ Остановить и вставить (⌘)") {
                     coordinator.stopDictationAndProcess()
                 }
             } else {
-                Button("🐸 Начать запись (2x ⌘)") {
-                    coordinator.startDictation()
+                Button("🎙️ Начать диктовку (2x ⌘)") {
+                    coordinator.startDictation(mode: .dictation)
+                }
+                Button("🌐 Переводчик RU ⇄ EN (Зажать ⌘)") {
+                    coordinator.startDictation(mode: .translation)
                 }
             }
 

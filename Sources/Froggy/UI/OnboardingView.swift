@@ -184,8 +184,8 @@ struct OnboardingView: View {
             .padding(.bottom, 12)
 
             // Instruction
-            Text("Двойной тап ⌘ Command → говорите → ⌘ для вставки")
-                .font(.system(size: 11))
+            Text("2x ⌘ Command — диктовка • Зажать ⌘ (1 сек) — переводчик RU ⇄ EN")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 16)

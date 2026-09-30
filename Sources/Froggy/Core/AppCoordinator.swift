@@ -12,6 +12,7 @@ final class AppCoordinator: ObservableObject {
     private let hotkeyManager = HotkeyManager.shared
     private var cancellables = Set<AnyCancellable>()
     private var recordingStartTime: TimeInterval = 0
+    private var currentMode: DictationMode = .dictation
 
     private init() {
         setupBindings()
@@ -21,22 +22,23 @@ final class AppCoordinator: ObservableObject {
         print("[Froggy] AppCoordinator: starting...")
         hotkeyManager.startMonitoring()
 
-        // Подписываемся на обновление волны
+        // Подписываемся на обновление звуковой волны
         audioRecorder.$audioLevel
             .receive(on: DispatchQueue.main)
             .sink { [weak self] level in
                 guard let self = self, self.isListening else { return }
-                FloatingHUDWindow.shared.update(state: .listening(level: level))
+                FloatingHUDWindow.shared.update(state: .listening(level: level, mode: self.currentMode))
             }
             .store(in: &cancellables)
 
-        print("[Froggy] AppCoordinator: ready! Double-tap ⌘ to start dictation")
+        print("[Froggy] AppCoordinator: ready! 2x ⌘ for dictation, hold ⌘ (1s) for translator")
     }
 
     private func setupBindings() {
+        // Режим 1: Двойной клик Command -> диктовка и исправление ошибок
         hotkeyManager.onDoubleTapCommand = { [weak self] in
             Task { @MainActor in
-                self?.startDictation()
+                self?.startDictation(mode: .dictation)
             }
         }
 
@@ -45,9 +47,22 @@ final class AppCoordinator: ObservableObject {
                 self?.stopDictationAndProcess()
             }
         }
+
+        // Режим 2: Зажатие Command на 1 секунду -> живой переводчик (RU ⇄ EN)
+        hotkeyManager.onHoldCommandStart = { [weak self] in
+            Task { @MainActor in
+                self?.startDictation(mode: .translation)
+            }
+        }
+
+        hotkeyManager.onHoldCommandRelease = { [weak self] in
+            Task { @MainActor in
+                self?.stopDictationAndProcess()
+            }
+        }
     }
 
-    func startDictation() {
+    func startDictation(mode: DictationMode) {
         guard !isListening else { return }
 
         guard let apiKey = KeychainHelper.getAPIKey(), !apiKey.isEmpty else {
@@ -58,14 +73,14 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-
         do {
             try audioRecorder.startRecording()
-            recordingStartTime = ProcessInfo.processInfo.systemUptime
-            isListening = true
-            hotkeyManager.isRecordingActive = true
-            FloatingHUDWindow.shared.update(state: .listening(level: 0))
-            print("[Froggy] AppCoordinator: dictation STARTED")
+            self.currentMode = mode
+            self.recordingStartTime = ProcessInfo.processInfo.systemUptime
+            self.isListening = true
+            self.hotkeyManager.isRecordingActive = true
+            FloatingHUDWindow.shared.update(state: .listening(level: 0, mode: mode))
+            print("[Froggy] AppCoordinator: recording STARTED (mode: \(mode))")
         } catch {
             print("[Froggy] AppCoordinator: failed to start recording: \(error)")
             FloatingHUDWindow.shared.update(state: .error(message: error.localizedDescription))
@@ -77,7 +92,7 @@ final class AppCoordinator: ObservableObject {
         guard isListening else { return }
         isListening = false
         hotkeyManager.isRecordingActive = false
-        print("[Froggy] AppCoordinator: dictation STOPPED, processing...")
+        print("[Froggy] AppCoordinator: dictation STOPPED (mode: \(currentMode)), processing...")
 
         guard let audioURL = audioRecorder.stopRecording() else {
             FloatingHUDWindow.shared.hide()
@@ -93,7 +108,8 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        FloatingHUDWindow.shared.update(state: .processing(stage: "Расшифровка речи..."))
+        let stageText = currentMode == .translation ? "Перевожу..." : "Расшифровка речи..."
+        FloatingHUDWindow.shared.update(state: .processing(stage: stageText, mode: currentMode))
 
         Task {
             guard let apiKey = KeychainHelper.getAPIKey() else { return }
@@ -114,9 +130,19 @@ final class AppCoordinator: ObservableObject {
                     return
                 }
 
-                // 2. Grammar fix — Groq LLM
-                FloatingHUDWindow.shared.update(state: .processing(stage: "Исправление ошибок..."))
-                let finalText = try await GroqClient.shared.correctGrammar(text: rawText, apiKey: apiKey)
+                // 2. Обработка через Llama 3.3 в зависимости от режима:
+                let finalText: String
+                let successMessage: String
+
+                if currentMode == .translation {
+                    FloatingHUDWindow.shared.update(state: .processing(stage: "Перевожу RU ⇄ EN...", mode: .translation))
+                    finalText = try await GroqClient.shared.translateText(text: rawText, apiKey: apiKey)
+                    successMessage = "Переведено!"
+                } else {
+                    FloatingHUDWindow.shared.update(state: .processing(stage: "Исправление ошибок...", mode: .dictation))
+                    finalText = try await GroqClient.shared.correctGrammar(text: rawText, apiKey: apiKey)
+                    successMessage = "Готово!"
+                }
 
                 print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")
 
@@ -124,7 +150,7 @@ final class AppCoordinator: ObservableObject {
                 TextInjector.shared.insertText(finalText)
 
                 // 4. Готово!
-                FloatingHUDWindow.shared.update(state: .completed)
+                FloatingHUDWindow.shared.update(state: .completed(message: successMessage))
                 FloatingHUDWindow.shared.hide(delay: 0.8)
 
             } catch {

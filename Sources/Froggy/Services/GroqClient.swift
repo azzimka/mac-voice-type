@@ -185,4 +185,66 @@ final class GroqClient {
 
         return text
     }
+
+    func translateText(text: String, apiKey: String, model: String = "llama-3.3-70b-versatile") async throws -> String {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else { throw GroqError.missingAPIKey }
+
+        let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let systemPrompt = """
+        You are an elite bilingual speech translator between Russian and English.
+        Analyze the input speech transcript and determine its language:
+        1. If primarily in Russian (or Russian slang/speech):
+           -> Translate accurately, fluently, and naturally into modern conversational ENGLISH.
+        2. If primarily in English:
+           -> Translate accurately, fluently, and naturally into modern conversational RUSSIAN.
+        3. If in Uzbek:
+           -> Translate accurately into modern ENGLISH.
+
+        STRICT TRANSLATION RULES:
+        - Output ONLY the final translated text.
+        - NEVER add quotes, notes, comments, or explanations.
+        - Preserve natural phrasing, colloquial idioms, and technical terms.
+        """
+
+        let payload: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": text]
+            ],
+            "temperature": 0.2,
+            "max_tokens": 1024
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            print("[Froggy] GroqClient: translation failed, falling back to raw text")
+            return text
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        if let chatResp = try? JSONDecoder().decode(ChatResponse.self, from: data),
+           let result = chatResp.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+           !result.isEmpty {
+            print("[Froggy] GroqClient: translated: \(result)")
+            return result
+        }
+
+        return text
+    }
 }

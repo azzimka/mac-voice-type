@@ -1,21 +1,28 @@
 import Cocoa
 
-/// Менеджер горячих клавиш: отслеживание двойного нажатия Command
+/// Менеджер горячих клавиш:
+/// 1. Двойной тап Command -> диктовка (на том же языке с исправлением)
+/// 2. Зажатие Command на 1.0 сек -> живой переводчик (RU ⇄ EN)
 @MainActor
 final class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
 
     var onDoubleTapCommand: (() -> Void)?
     var onStopRecording: (() -> Void)?
+    var onHoldCommandStart: (() -> Void)?
+    var onHoldCommandRelease: (() -> Void)?
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var lastCommandUpTime: TimeInterval = 0
     private var isCommandDown: Bool = false
     private let doubleTapThreshold: TimeInterval = 0.4
+    private let holdThreshold: TimeInterval = 1.0
     private var otherKeyPressedDuringCommand: Bool = false
+    private var holdWorkItem: DispatchWorkItem?
 
     var isRecordingActive: Bool = false
+    var isHoldRecordingActive: Bool = false
 
     private init() {}
 
@@ -23,7 +30,6 @@ final class HotkeyManager: ObservableObject {
         stopMonitoring()
         print("[Froggy] HotkeyManager: starting global key monitoring")
 
-        // Проверяем Accessibility
         let hasAccess = TextInjector.checkAccessibilityPermission(prompt: false)
         print("[Froggy] HotkeyManager: Accessibility permission = \(hasAccess)")
 
@@ -44,15 +50,19 @@ final class HotkeyManager: ObservableObject {
     }
 
     func stopMonitoring() {
+        holdWorkItem?.cancel()
+        holdWorkItem = nil
         if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
         if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
     }
 
     private func handleEvent(_ event: NSEvent) {
-        // Если нажали обычную клавишу во время удержания Command — это шорткат (Cmd+C и т.д.)
+        // Если во время удержания Command нажали другую клавишу — это системный шорткат (Cmd+C, Cmd+Tab и т.д.)
         if event.type == .keyDown {
             if isCommandDown {
                 otherKeyPressedDuringCommand = true
+                holdWorkItem?.cancel()
+                holdWorkItem = nil
             }
             return
         }
@@ -66,24 +76,51 @@ final class HotkeyManager: ObservableObject {
             isCommandDown = true
             otherKeyPressedDuringCommand = false
 
-            // Если запись уже идёт — одиночное нажатие Command останавливает её
+            // Если обычная диктовка уже идёт — одиночное нажатие Command останавливает её
             if isRecordingActive {
                 print("[Froggy] HotkeyManager: Cmd pressed during recording -> stopping")
                 onStopRecording?()
                 lastCommandUpTime = 0
                 return
             }
+
+            // Запускаем таймер на 1.0 секунду для режима Переводчика
+            holdWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                if self.isCommandDown && !self.otherKeyPressedDuringCommand && !self.isRecordingActive {
+                    print("[Froggy] HotkeyManager: HOLD COMMAND (1s) triggered -> TRANSLATOR MODE")
+                    self.isHoldRecordingActive = true
+                    self.onHoldCommandStart?()
+                }
+            }
+            self.holdWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + holdThreshold, execute: workItem)
+
         } else if !isCmdNow && isCommandDown {
             // Command ОТПУЩЕН
             isCommandDown = false
 
-            // Если во время удержания Command нажимали другую клавишу — это шорткат, игнорируем
+            // Отменяем таймер удержания
+            holdWorkItem?.cancel()
+            holdWorkItem = nil
+
+            // Если это был режим переводчика (зажатие 1 сек), то при отпускании завершаем запись и переводим!
+            if isHoldRecordingActive {
+                print("[Froggy] HotkeyManager: Command RELEASED -> stopping translator recording")
+                isHoldRecordingActive = false
+                lastCommandUpTime = 0
+                onHoldCommandRelease?()
+                return
+            }
+
+            // Если во время Command нажимали другую клавишу — это шорткат, игнорируем
             if otherKeyPressedDuringCommand {
                 lastCommandUpTime = 0
                 return
             }
 
-            // Проверяем двойной тап по моменту ОТПУСКАНИЯ
+            // Проверяем двойной тап по моменту ОТПУСКАНИЯ для обычной диктовки
             let now = ProcessInfo.processInfo.systemUptime
 
             if !isRecordingActive {

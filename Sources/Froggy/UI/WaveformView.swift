@@ -2,12 +2,13 @@ import SwiftUI
 
 struct WaveformView: View {
     let audioLevel: Float
+    var isTranslation: Bool = false
     private let barCount = 5
 
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<barCount, id: \.self) { index in
-                WaveBar(audioLevel: audioLevel, index: index)
+                WaveBar(audioLevel: audioLevel, index: index, isTranslation: isTranslation)
             }
         }
         .frame(height: 22)
@@ -17,6 +18,7 @@ struct WaveformView: View {
 private struct WaveBar: View {
     let audioLevel: Float
     let index: Int
+    let isTranslation: Bool
 
     private var weight: CGFloat {
         switch index {
@@ -43,10 +45,9 @@ private struct WaveBar: View {
         Capsule()
             .fill(
                 LinearGradient(
-                    colors: [
-                        Color(red: 0.22, green: 0.85, blue: 0.42),
-                        Color(red: 0.12, green: 0.68, blue: 0.32)
-                    ],
+                    colors: isTranslation
+                        ? [Color(red: 0.0, green: 0.78, blue: 1.0), Color(red: 0.1, green: 0.45, blue: 0.95)]
+                        : [Color(red: 0.22, green: 0.85, blue: 0.42), Color(red: 0.12, green: 0.68, blue: 0.32)],
                     startPoint: .top,
                     endPoint: .bottom
                 )

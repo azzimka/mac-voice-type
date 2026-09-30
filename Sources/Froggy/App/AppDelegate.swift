@@ -27,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             print("[Froggy] API key found, ready to use!")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                FloatingHUDWindow.shared.update(state: .completed)
+                FloatingHUDWindow.shared.update(state: .completed(message: "Froggy готов!"))
                 FloatingHUDWindow.shared.hide(delay: 1.5)
             }
         }
