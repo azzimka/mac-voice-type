@@ -30,6 +30,8 @@ final class FloatingHUDWindow: NSObject {
 
         let contentView = FloatingHUDView(viewModel: viewModel)
         let hosting = NSHostingView(rootView: contentView)
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = NSColor.clear.cgColor
         self.hostingView = hosting
         panel.contentView = hosting
 

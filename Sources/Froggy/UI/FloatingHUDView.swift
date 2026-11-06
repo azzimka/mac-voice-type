@@ -106,6 +106,5 @@ struct FloatingHUDView: View {
             }
         )
         .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
 }
