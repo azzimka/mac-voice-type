@@ -14,7 +14,7 @@ enum HUDState: Equatable {
 
 @MainActor
 final class FloatingHUDViewModel: ObservableObject {
-    @Published var state: HUDState = .completed(message: "Готово!")
+    @Published var state: HUDState = .listening(level: 0, mode: .dictation)
 }
 
 struct FloatingHUDView: View {

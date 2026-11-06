@@ -24,7 +24,11 @@ final class GroqClient {
     static let shared = GroqClient()
     private let session: URLSession
 
-    init() {
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+            return
+        }
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 180 // Достаточно для загрузки и обработки 10-минутных аудиозаписей
         self.session = URLSession(configuration: config)
@@ -90,7 +94,6 @@ final class GroqClient {
         appendField("model", model)
         appendField("response_format", "json")
         appendField("temperature", "0.0")
-        appendField("prompt", "O'zbekcha, русский язык, English. Привет, как дела? Hi! Salom, ishlar yaxshimi? Git, GitHub, API, macOS.")
 
         let filename = fileURL.lastPathComponent
         let mimeType = filename.hasSuffix(".wav") ? "audio/wav" : "audio/m4a"

@@ -4,8 +4,9 @@ import SwiftUI
 @MainActor
 final class FloatingHUDWindow: NSObject {
     static let shared = FloatingHUDWindow()
-    private var panel: NSPanel?
-    private let viewModel = FloatingHUDViewModel()
+    private(set) var panel: NSPanel?
+    let viewModel = FloatingHUDViewModel()
+    private var presentationVersion = 0
     private var hostingView: NSHostingView<FloatingHUDView>?
 
     private override init() {
@@ -41,34 +42,47 @@ final class FloatingHUDWindow: NSObject {
     func update(state: HUDState) {
         guard let panel = panel else { return }
 
-        // Если это просто изменение уровня звука во время прослушивания —
-        // мгновенно передаём уровень во ViewModel без тяжёлого пересчёта размера окна
+        // Any new content invalidates a delayed hide from the previous state.
+        presentationVersion += 1
         let isLevelUpdateOnly: Bool
         switch (viewModel.state, state) {
-        case (.listening(_, let m1), .listening(_, let m2)):
-            isLevelUpdateOnly = (m1 == m2)
+        case (.listening(_, let oldMode), .listening(_, let newMode)):
+            isLevelUpdateOnly = oldMode == newMode && panel.isVisible
         default:
             isLevelUpdateOnly = false
         }
+        let startsListening: Bool
+        if case .listening = state { startsListening = true } else { startsListening = false }
 
-        if isLevelUpdateOnly {
+        if !panel.isVisible || startsListening && !isListeningState {
+            // Flush the new content before orderFront, without animating the old result.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                viewModel.state = state
+                hostingView?.rootView = FloatingHUDView(viewModel: viewModel)
+                hostingView?.layoutSubtreeIfNeeded()
+                hostingView?.displayIfNeeded()
+            }
+        } else if isLevelUpdateOnly {
             viewModel.state = state
         } else {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                 viewModel.state = state
             }
+        }
 
-            if let hosting = hostingView {
-                panel.layoutIfNeeded()
-                let fittingSize = hosting.fittingSize
-                if fittingSize.width > 50 && fittingSize.height > 20 {
-                    panel.setContentSize(fittingSize)
-                    if let screen = NSScreen.main {
-                        let screenFrame = screen.visibleFrame
-                        let x = screenFrame.midX - (fittingSize.width / 2.0)
-                        let y = screenFrame.minY + 60.0
-                        panel.setFrameOrigin(NSPoint(x: x, y: y))
-                    }
+        if !isLevelUpdateOnly, let hosting = hostingView {
+            panel.layoutIfNeeded()
+            let fittingSize = hosting.fittingSize
+            if fittingSize.width > 50 && fittingSize.height > 20 {
+                panel.setContentSize(fittingSize)
+                if let screen = NSScreen.main {
+                    let screenFrame = screen.visibleFrame
+                    panel.setFrameOrigin(NSPoint(
+                        x: screenFrame.midX - fittingSize.width / 2,
+                        y: screenFrame.minY + 60
+                    ))
                 }
             }
         }
@@ -83,16 +97,22 @@ final class FloatingHUDWindow: NSObject {
         }
     }
 
+    private var isListeningState: Bool {
+        if case .listening = viewModel.state { return true }
+        return false
+    }
+
     func hide(delay: TimeInterval = 0.0) {
-        guard let panel = panel, panel.isVisible else { return }
+        let version = presentationVersion
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let panel = self?.panel, panel.isVisible else { return }
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = 0.25
-                panel.animator().alphaValue = 0.0
-            }, completionHandler: {
-                panel.orderOut(nil)
-            })
+            guard let self, self.presentationVersion == version else { return }
+            // Hide before resetting: SwiftUI must never render the previous result on reopen.
+            self.panel?.orderOut(nil)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                self.viewModel.state = .listening(level: 0, mode: .dictation)
+            }
         }
     }
 }

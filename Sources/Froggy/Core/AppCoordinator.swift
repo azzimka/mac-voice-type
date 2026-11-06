@@ -113,11 +113,24 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
+        guard audioRecorder.hasSufficientSignal else {
+            print("[Froggy] AppCoordinator: no speech-level signal, cancelling quietly")
+            audioRecorder.cleanup(fileURL: audioURL)
+            FloatingHUDWindow.shared.hide()
+            return
+        }
+
+        let mode = currentMode
+        let targetApp = targetApplication
         let stageText = currentMode == .translation ? "Перевожу..." : "Расшифровка речи..."
         FloatingHUDWindow.shared.update(state: .processing(stage: stageText, mode: currentMode))
 
         Task {
-            guard let apiKey = KeychainHelper.getAPIKey() else { return }
+            defer { audioRecorder.cleanup(fileURL: audioURL) }
+            guard let apiKey = KeychainHelper.getAPIKey() else {
+                FloatingHUDWindow.shared.hide()
+                return
+            }
 
             do {
                 // 1. STT — Groq Whisper
@@ -126,12 +139,8 @@ final class AppCoordinator: ObservableObject {
                     apiKey: apiKey
                 )
 
-                // Удаляем временный файл сразу
-                audioRecorder.cleanup(fileURL: audioURL)
-
-                guard !rawText.isEmpty else {
-                    FloatingHUDWindow.shared.update(state: .error(message: "Речь не распознана"))
-                    FloatingHUDWindow.shared.hide(delay: 1.5)
+                guard !WhisperArtifactFilter.shouldDiscard(rawText) else {
+                    FloatingHUDWindow.shared.hide()
                     return
                 }
 
@@ -139,7 +148,7 @@ final class AppCoordinator: ObservableObject {
                 let finalText: String
                 let successMessage: String
 
-                if currentMode == .translation {
+                if mode == .translation {
                     FloatingHUDWindow.shared.update(state: .processing(stage: "Перевожу...", mode: .translation))
                     finalText = try await GroqClient.shared.translateText(text: rawText, apiKey: apiKey)
                     successMessage = "Переведено!"
@@ -149,10 +158,15 @@ final class AppCoordinator: ObservableObject {
                     successMessage = "Готово!"
                 }
 
+                guard !WhisperArtifactFilter.shouldDiscard(finalText) else {
+                    FloatingHUDWindow.shared.hide()
+                    return
+                }
+
                 print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")
 
                 // 3. Вставка текста напрямую в целевое приложение без изменения буфера обмена
-                TextInjector.shared.insertText(finalText, targetApp: self.targetApplication)
+                TextInjector.shared.insertText(finalText, targetApp: targetApp)
 
                 // 4. Готово!
                 FloatingHUDWindow.shared.update(state: .completed(message: successMessage))
@@ -160,7 +174,6 @@ final class AppCoordinator: ObservableObject {
 
             } catch {
                 print("[Froggy] AppCoordinator: error: \(error)")
-                audioRecorder.cleanup(fileURL: audioURL)
                 FloatingHUDWindow.shared.update(state: .error(message: error.localizedDescription))
                 FloatingHUDWindow.shared.hide(delay: 2.5)
             }

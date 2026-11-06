@@ -8,9 +8,15 @@ final class AudioRecorder: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var audioLevel: Float = 0.0
 
+    // Read synchronously at stop; main-queue waveform callbacks may still be pending.
+    private let signalMeter = RecordingSignalMeter()
+    var peakAudioLevel: Float { signalMeter.peakAudioLevel }
+    var hasSufficientSignal: Bool { signalMeter.hasSufficientSignal }
+
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var currentFileURL: URL?
+    private var recordingSessionID: UUID?
     private var smoothedLevel: Float = 0.0
 
     private func updateSmoothedLevel(_ rawLevel: Float) {
@@ -81,6 +87,13 @@ final class AudioRecorder: ObservableObject {
             ])
         }
 
+        signalMeter.reset()
+        smoothedLevel = 0
+        audioLevel = 0
+        let meter = signalMeter
+        let sessionID = UUID()
+        recordingSessionID = sessionID
+
         // Устанавливаем tap на микрофон
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: nativeFormat) { [weak self] buffer, _ in
             // Замер уровня громкости (RMS)
@@ -96,8 +109,13 @@ final class AudioRecorder: ObservableObject {
                 // Откликается даже на спокойную речь и тихие согласные звуки
                 let effectiveRMS = max(0.0, rms - 0.001)
                 let normalizedLevel = min(1.0, powf(effectiveRMS * 22.0, 0.60))
+                meter.observe(
+                    samples: UnsafeBufferPointer(start: data, count: frameLength),
+                    sampleRate: nativeFormat.sampleRate
+                )
                 DispatchQueue.main.async {
-                    self?.updateSmoothedLevel(normalizedLevel)
+                    guard let self, self.isRecording, self.recordingSessionID == sessionID else { return }
+                    self.updateSmoothedLevel(normalizedLevel)
                 }
             }
 
@@ -145,6 +163,7 @@ final class AudioRecorder: ObservableObject {
         engine.stop()
         self.audioEngine = nil
         self.audioFile = nil
+        self.recordingSessionID = nil
         self.isRecording = false
         self.audioLevel = 0.0
         self.smoothedLevel = 0.0
