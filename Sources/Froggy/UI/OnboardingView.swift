@@ -183,14 +183,62 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 12)
 
-            // Instruction
-            Text("2x ⌘ Command — диктовка • Зажать ⌘ (1 сек) — переводчик RU ⇄ EN")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 16)
+            // Instructions: 3 modes
+            HStack(spacing: 8) {
+                VStack(spacing: 3) {
+                    Text("2x ⌘")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
+                    Text("Диктовка")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider()
+                    .frame(height: 22)
+                    .opacity(0.3)
+
+                VStack(spacing: 3) {
+                    Text("Зажать ⌘")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
+                    Text("Переводчик")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider()
+                    .frame(height: 22)
+                    .opacity(0.3)
+
+                VStack(spacing: 3) {
+                    Text("2x ⌥")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
+                    Text("Dev Mode")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
         }
-        .frame(width: 400, height: 480)
+        .frame(width: 400, height: 510)
         .background(.ultraThinMaterial)
     }
 }
