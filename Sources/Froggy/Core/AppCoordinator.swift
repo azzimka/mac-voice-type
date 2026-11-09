@@ -32,7 +32,7 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
-        print("[Froggy] AppCoordinator: ready! 2x ⌘ for dictation, hold ⌘ (1s) for translator, ⌘ + > for dev mode")
+        print("[Froggy] AppCoordinator: ready! 2x ⌘ for dictation, hold ⌘ (1s) for translator, 2x ⌥ for dev mode")
     }
 
     private func setupBindings() {
@@ -62,7 +62,7 @@ final class AppCoordinator: ObservableObject {
             }
         }
 
-        // Режим 3: Command + > (или .) -> Режим разработчика (Python переменные)
+        // Режим 3: Двойной тап Option (2x ⌥) -> Режим разработчика (Python переменные)
         hotkeyManager.onDevModeTrigger = { [weak self] in
             Task { @MainActor in
                 guard let self = self else { return }

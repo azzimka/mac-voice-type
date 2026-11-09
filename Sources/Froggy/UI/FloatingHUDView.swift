@@ -65,7 +65,7 @@ struct FloatingHUDView: View {
                         Text("Froggy Dev (Python)")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundColor(.primary)
-                        Text("Нажмите ⌘ для создания")
+                        Text("Нажмите ⌘ или ⌥ для создания")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                     }

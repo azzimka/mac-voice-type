@@ -3,6 +3,7 @@ import Cocoa
 /// Менеджер горячих клавиш:
 /// 1. Двойной тап Command -> диктовка (на том же языке с исправлением)
 /// 2. Зажатие Command на 1.0 сек -> живой переводчик (RU ⇄ EN)
+/// 3. Двойной тап Option -> режим разработчика (Python переменные)
 @MainActor
 final class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
@@ -16,10 +17,13 @@ final class HotkeyManager: ObservableObject {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var lastCommandUpTime: TimeInterval = 0
+    private var lastOptionUpTime: TimeInterval = 0
     private var isCommandDown: Bool = false
+    private var isOptionDown: Bool = false
     private let doubleTapThreshold: TimeInterval = 0.4
     private let holdThreshold: TimeInterval = 0.7
     private var otherKeyPressedDuringCommand: Bool = false
+    private var otherKeyPressedDuringOption: Bool = false
     private var holdWorkItem: DispatchWorkItem?
     private var justStoppedRecording: Bool = false
 
@@ -59,25 +63,15 @@ final class HotkeyManager: ObservableObject {
     }
 
     private func handleEvent(_ event: NSEvent) {
-        // Проверяем сочетание Command + > (или .) для Dev Mode
+        // Если во время удержания модификаторов нажали другую клавишу — это системный шорткат
         if event.type == .keyDown {
-            let isCmd = event.modifierFlags.contains(.command)
-            let isDevKey = (event.keyCode == 47 || event.characters == ">" || event.charactersIgnoringModifiers == ".")
-
-            if isCmd && isDevKey {
-                print("[Froggy] HotkeyManager: Cmd + > (Dev Mode) key pressed")
-                otherKeyPressedDuringCommand = true
-                holdWorkItem?.cancel()
-                holdWorkItem = nil
-                onDevModeTrigger?()
-                return
-            }
-
-            // Если во время удержания Command нажали другую клавишу — это системный шорткат (Cmd+C, Cmd+Tab и т.д.)
             if isCommandDown {
                 otherKeyPressedDuringCommand = true
                 holdWorkItem?.cancel()
                 holdWorkItem = nil
+            }
+            if isOptionDown {
+                otherKeyPressedDuringOption = true
             }
             return
         }
@@ -85,7 +79,48 @@ final class HotkeyManager: ObservableObject {
         guard event.type == .flagsChanged else { return }
 
         let isCmdNow = event.modifierFlags.contains(.command)
+        let isOptionNow = event.modifierFlags.contains(.option)
 
+        // --- Обработка клавиши OPTION (2x Option -> Dev Mode) ---
+        if isOptionNow && !isOptionDown {
+            isOptionDown = true
+            otherKeyPressedDuringOption = false
+
+            // Если любая запись уже идёт — одиночное нажатие Option останавливает её
+            if isRecordingActive {
+                print("[Froggy] HotkeyManager: Option pressed during recording -> stopping")
+                justStoppedRecording = true
+                isRecordingActive = false
+                lastOptionUpTime = 0
+                lastCommandUpTime = 0
+                onStopRecording?()
+                return
+            }
+        } else if !isOptionNow && isOptionDown {
+            isOptionDown = false
+
+            if justStoppedRecording {
+                justStoppedRecording = false
+                lastOptionUpTime = 0
+                return
+            }
+
+            if otherKeyPressedDuringOption {
+                lastOptionUpTime = 0
+            } else if !isRecordingActive {
+                let now = ProcessInfo.processInfo.systemUptime
+                let diff = now - lastOptionUpTime
+                if diff > 0.05 && diff <= doubleTapThreshold {
+                    print("[Froggy] HotkeyManager: DOUBLE TAP OPTION (2x ⌥) detected! -> Dev Mode")
+                    lastOptionUpTime = 0
+                    onDevModeTrigger?()
+                } else {
+                    lastOptionUpTime = now
+                }
+            }
+        }
+
+        // --- Обработка клавиши COMMAND (2x Cmd -> диктовка, Hold Cmd -> переводчик) ---
         if isCmdNow && !isCommandDown {
             // Command НАЖАТ
             isCommandDown = true
@@ -97,6 +132,7 @@ final class HotkeyManager: ObservableObject {
                 justStoppedRecording = true
                 isRecordingActive = false
                 lastCommandUpTime = 0
+                lastOptionUpTime = 0
                 onStopRecording?()
                 return
             }
