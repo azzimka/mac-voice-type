@@ -65,7 +65,7 @@ final class DictationRegressionTests {
         assert(!(hud.panel?.isVisible ?? true))
         assert(hud.viewModel.state == .listening(level: 0, mode: .dictation))
 
-        for mode in [DictationMode.dictation, .translation] {
+        for mode in [DictationMode.dictation, .translation, .developer] {
             hud.update(state: .completed(message: "Готово!"))
             hud.hide(delay: 0.05)
             hud.update(state: .listening(level: 0, mode: mode))

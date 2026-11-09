@@ -9,6 +9,7 @@ struct RegressionMain {
         tests.testArtifactsAndRealSpeech()
         try await tests.testHUDResetsAndOldHideCannotCloseNewRecording()
         try await GroqRequestTests().testWhisperRequestHasNoSyntheticPrompt()
-        print("PASS: silence/click/duration gate at 16/44.1/48 kHz, punctuation/artifact filter, HUD lifecycle (both modes), Whisper multipart without prompt")
+        try await GroqRequestTests().testGeneratePythonVariableUsesGptOss120bAndSanitizesMarkdown()
+        print("PASS: silence/click/duration gate, punctuation/artifact filter, HUD lifecycle (3 modes: dictation, translator, dev), Whisper multipart without prompt, Python variable via gpt-oss-120b")
     }
 }

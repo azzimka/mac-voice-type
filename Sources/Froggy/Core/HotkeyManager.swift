@@ -11,6 +11,7 @@ final class HotkeyManager: ObservableObject {
     var onStopRecording: (() -> Void)?
     var onHoldCommandStart: (() -> Void)?
     var onHoldCommandRelease: (() -> Void)?
+    var onDevModeTrigger: (() -> Void)?
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
@@ -58,8 +59,21 @@ final class HotkeyManager: ObservableObject {
     }
 
     private func handleEvent(_ event: NSEvent) {
-        // Если во время удержания Command нажали другую клавишу — это системный шорткат (Cmd+C, Cmd+Tab и т.д.)
+        // Проверяем сочетание Command + > (или .) для Dev Mode
         if event.type == .keyDown {
+            let isCmd = event.modifierFlags.contains(.command)
+            let isDevKey = (event.keyCode == 47 || event.characters == ">" || event.charactersIgnoringModifiers == ".")
+
+            if isCmd && isDevKey {
+                print("[Froggy] HotkeyManager: Cmd + > (Dev Mode) key pressed")
+                otherKeyPressedDuringCommand = true
+                holdWorkItem?.cancel()
+                holdWorkItem = nil
+                onDevModeTrigger?()
+                return
+            }
+
+            // Если во время удержания Command нажали другую клавишу — это системный шорткат (Cmd+C, Cmd+Tab и т.д.)
             if isCommandDown {
                 otherKeyPressedDuringCommand = true
                 holdWorkItem?.cancel()

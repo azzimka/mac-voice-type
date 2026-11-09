@@ -128,6 +128,7 @@ final class GroqClient {
     }
 
     static let defaultChatModel = "qwen/qwen3.8-27b"
+    static let defaultCodeModel = "openai/gpt-oss-120b"
 
     private func sanitizeResult(_ text: String) -> String {
         var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -297,6 +298,117 @@ final class GroqClient {
             let cleaned = sanitizeResult(rawResult)
             if !cleaned.isEmpty {
                 print("[Froggy] GroqClient: translated: \(cleaned)")
+                return cleaned
+            }
+        }
+
+        return text
+    }
+
+    private func sanitizeCodeResult(_ text: String) -> String {
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Удаляем reasoning теги <think>...</think>, если модель их вернула
+        if let thinkEnd = cleaned.range(of: "</think>") {
+            cleaned = String(cleaned[thinkEnd.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Удаляем markdown code blocks ```python ... ``` или ``` ... ```
+        if cleaned.hasPrefix("```") {
+            let lines = cleaned.components(separatedBy: "\n")
+            var contentLines = lines
+            if contentLines.first?.hasPrefix("```") == true {
+                contentLines.removeFirst()
+            }
+            if contentLines.last?.hasPrefix("```") == true {
+                contentLines.removeLast()
+            }
+            cleaned = contentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Удаляем случайные кавычки вокруг всей строки
+        if (cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"")) ||
+           (cleaned.hasPrefix("`") && cleaned.hasSuffix("`")) {
+            cleaned = String(cleaned.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return cleaned
+    }
+
+    func generatePythonVariable(text: String, apiKey: String, model: String = GroqClient.defaultCodeModel) async throws -> String {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else { throw GroqError.missingAPIKey }
+
+        let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let systemPrompt = """
+        You are an expert Python software engineer specializing in turning natural language voice descriptions into clean, idiomatic, PEP 8 compliant Python variable definitions.
+
+        CRITICAL OPERATING RULES:
+        1. OUTPUT CODE ONLY:
+           - Output ONLY executable Python variable definition(s).
+           - NEVER wrap code in markdown fences (NO ``` or ```python).
+           - NEVER add quotes around the code block.
+           - NEVER include explanations, comments, greetings, or conversational remarks (NO "Here is your variable:", NO "Sure!").
+        2. VARIABLE NAMING (PEP 8):
+           - Variable names MUST be in valid Python snake_case.
+           - If the user specifies an explicit name (e.g. "создай переменную n", "user_age", "items"), use that exact name (converted to snake_case).
+           - If the user does not specify a name or uses a vague description (e.g. "создай список пользователей"), generate a descriptive, concise, idiomatic name (e.g. `user_list` or `users`).
+        3. VALUE & TYPE CONVERSION:
+           - Detect the intended Python type from user speech and provide realistic, proper literal values:
+             * Integers / Floats: e.g. 42, 100, 3.14, 0
+             * Strings: double quotes `"text"`, properly escaped if necessary
+             * Booleans: `True` or `False` (capitalized)
+             * Lists / Arrays: `["apple", "banana"]` or `[1, 2, 3]`
+             * Dictionaries / Objects: `{"key": "value"}`
+             * Sets: `{1, 2, 3}` or `set()` for empty set
+             * Tuples: `(1, 2)`
+             * None / null: `None`
+           - If the user specifies both name and explicit value, use them directly (e.g. "переменная x со значением 10" -> `x = 10`).
+           - If the user specifies a name and type without value, provide a standard sensible initial value for that type (e.g. `count = 0`, `name = ""`, `is_active = False`, `items = []`).
+           - If the user describes content conceptually (e.g. "список покупок с молоком и хлебом"), create the appropriate literal: `shopping_list = ["молоко", "хлеб"]`.
+        4. MULTIPLE VARIABLES:
+           - If the user describes multiple variables, output each on a new line.
+        5. NO SYNTAX ERRORS:
+           - The output must be directly syntactically valid in Python 3.
+        """
+
+        let payload: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": text]
+            ],
+            "temperature": 0.05,
+            "max_tokens": 512
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[Froggy] GroqClient: python variable generation failed (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorText)")
+            throw GroqError.invalidResponse(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: errorText)
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        if let chatResp = try? JSONDecoder().decode(ChatResponse.self, from: data),
+           let rawResult = chatResp.choices.first?.message.content {
+            let cleaned = sanitizeCodeResult(rawResult)
+            if !cleaned.isEmpty {
+                print("[Froggy] GroqClient: generated python variable: \(cleaned)")
                 return cleaned
             }
         }

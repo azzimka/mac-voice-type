@@ -1,8 +1,9 @@
 import SwiftUI
 
 enum DictationMode: Equatable {
-    case dictation    // Обычная диктовка (зелёная, исправление ошибок)
+    case dictation    // Обычная диктовка (красный микрофон, чистый Whisper)
     case translation  // Живой переводчик (сине-лазурный, RU ⇄ EN)
+    case developer    // Режим разработчика (фиолетовый, Python код через openai/gpt-oss-120b)
 }
 
 enum HUDState: Equatable {
@@ -24,7 +25,8 @@ struct FloatingHUDView: View {
         HStack(spacing: 12) {
             switch viewModel.state {
             case .listening(let level, let mode):
-                if mode == .translation {
+                switch mode {
+                case .translation:
                     // РЕЖИМ ПЕРЕВОДЧИКА: Сине-голубой глобус и бейдж RU ⇄ EN
                     ZStack {
                         Circle()
@@ -36,7 +38,7 @@ struct FloatingHUDView: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(Color(red: 0.0, green: 0.65, blue: 1.0))
                     }
-                    WaveformView(audioLevel: level, isTranslation: true)
+                    WaveformView(audioLevel: level, mode: .translation)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Froggy Переводчик")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -45,7 +47,30 @@ struct FloatingHUDView: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                     }
-                } else {
+
+                case .developer:
+                    // РЕЖИМ РАЗРАБОТЧИКА: Фиолетовый значок кода и фиолетовая волна
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.65, green: 0.35, blue: 1.0).opacity(0.18))
+                            .frame(width: 28, height: 28)
+                            .scaleEffect(1.0 + CGFloat(level) * 0.35)
+                            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.6), value: level)
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color(red: 0.65, green: 0.35, blue: 1.0))
+                    }
+                    WaveformView(audioLevel: level, mode: .developer)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Froggy Dev (Python)")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.primary)
+                        Text("Нажмите ⌘ для создания")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+
+                case .dictation:
                     // РЕЖИМ ДИКТОВКИ: Красный микрофон и красная волна
                     ZStack {
                         Circle()
@@ -57,7 +82,7 @@ struct FloatingHUDView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.red)
                     }
-                    WaveformView(audioLevel: level, isTranslation: false)
+                    WaveformView(audioLevel: level, mode: .dictation)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Froggy слушает...")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))

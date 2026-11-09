@@ -2,13 +2,13 @@ import SwiftUI
 
 struct WaveformView: View {
     let audioLevel: Float
-    var isTranslation: Bool = false
+    var mode: DictationMode = .dictation
     private let barCount = 7
 
     var body: some View {
         HStack(spacing: 2.5) {
             ForEach(0..<barCount, id: \.self) { index in
-                WaveBar(audioLevel: audioLevel, index: index, isTranslation: isTranslation)
+                WaveBar(audioLevel: audioLevel, index: index, mode: mode)
             }
         }
         .frame(height: 24)
@@ -18,7 +18,7 @@ struct WaveformView: View {
 private struct WaveBar: View {
     let audioLevel: Float
     let index: Int
-    let isTranslation: Bool
+    let mode: DictationMode
 
     // Высокочувствительное распределение высоты:
     // Центральные столбики дают мощный выразительный всплеск, крайние плавно следуют за ними
@@ -50,9 +50,16 @@ private struct WaveBar: View {
         Capsule()
             .fill(
                 LinearGradient(
-                    colors: isTranslation
-                        ? [Color(red: 0.20, green: 0.85, blue: 1.0), Color(red: 0.05, green: 0.50, blue: 0.98)]
-                        : [Color(red: 1.0, green: 0.32, blue: 0.32), Color(red: 0.90, green: 0.12, blue: 0.18)],
+                    colors: {
+                        switch mode {
+                        case .translation:
+                            return [Color(red: 0.20, green: 0.85, blue: 1.0), Color(red: 0.05, green: 0.50, blue: 0.98)]
+                        case .developer:
+                            return [Color(red: 0.80, green: 0.45, blue: 1.0), Color(red: 0.55, green: 0.20, blue: 0.95)]
+                        case .dictation:
+                            return [Color(red: 1.0, green: 0.32, blue: 0.32), Color(red: 0.90, green: 0.12, blue: 0.18)]
+                        }
+                    }(),
                     startPoint: .top,
                     endPoint: .bottom
                 )

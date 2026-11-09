@@ -32,7 +32,7 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
-        print("[Froggy] AppCoordinator: ready! 2x ⌘ for dictation, hold ⌘ (1s) for translator")
+        print("[Froggy] AppCoordinator: ready! 2x ⌘ for dictation, hold ⌘ (1s) for translator, ⌘ + > for dev mode")
     }
 
     private func setupBindings() {
@@ -59,6 +59,18 @@ final class AppCoordinator: ObservableObject {
         hotkeyManager.onHoldCommandRelease = { [weak self] in
             Task { @MainActor in
                 self?.stopDictationAndProcess()
+            }
+        }
+
+        // Режим 3: Command + > (или .) -> Режим разработчика (Python переменные)
+        hotkeyManager.onDevModeTrigger = { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { return }
+                if self.isListening {
+                    self.stopDictationAndProcess()
+                } else {
+                    self.startDictation(mode: .developer)
+                }
             }
         }
     }
@@ -122,7 +134,12 @@ final class AppCoordinator: ObservableObject {
 
         let mode = currentMode
         let targetApp = targetApplication
-        let stageText = currentMode == .translation ? "Перевожу..." : "Расшифровка речи..."
+        let stageText: String
+        switch currentMode {
+        case .translation: stageText = "Перевожу..."
+        case .developer:   stageText = "Генерирую Python код..."
+        case .dictation:   stageText = "Расшифровка речи..."
+        }
         FloatingHUDWindow.shared.update(state: .processing(stage: stageText, mode: currentMode))
 
         Task {
@@ -148,19 +165,33 @@ final class AppCoordinator: ObservableObject {
                 let finalText: String
                 let successMessage: String
 
-                if mode == .translation {
+                switch mode {
+                case .translation:
                     FloatingHUDWindow.shared.update(state: .processing(stage: "Перевожу...", mode: .translation))
                     finalText = try await GroqClient.shared.translateText(text: rawText, apiKey: apiKey)
                     successMessage = "Переведено!"
-                } else {
+
+                case .developer:
+                    FloatingHUDWindow.shared.update(state: .processing(stage: "Генерирую Python код...", mode: .developer))
+                    finalText = try await GroqClient.shared.generatePythonVariable(text: rawText, apiKey: apiKey)
+                    successMessage = "Код готов!"
+
+                case .dictation:
                     // Режим обычной диктовки: чистый моментальный Whisper (максимальная скорость и естественность)
                     finalText = rawText
                     successMessage = "Готово!"
                 }
 
-                guard !WhisperArtifactFilter.shouldDiscard(finalText) else {
+                guard !finalText.isEmpty else {
                     FloatingHUDWindow.shared.hide()
                     return
+                }
+
+                if mode != .developer {
+                    guard !WhisperArtifactFilter.shouldDiscard(finalText) else {
+                        FloatingHUDWindow.shared.hide()
+                        return
+                    }
                 }
 
                 print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")

@@ -40,4 +40,42 @@ final class GroqRequestTests {
         let text = try await GroqClient(session: session).transcribeAudio(fileURL: url, apiKey: "test-key")
         assert(text == "Привет, GitHub!")
     }
+
+    func testGeneratePythonVariableUsesGptOss120bAndSanitizesMarkdown() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PythonVariableStub.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        let code = try await GroqClient(session: session).generatePythonVariable(text: "создай переменную user_age со значением 25", apiKey: "test-key")
+        assert(code == "user_age = 25")
+    }
+}
+
+private final class PythonVariableStub: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        var body = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                body.append(contentsOf: buffer.prefix(count))
+            }
+        }
+        assert(request.url?.path == "/openai/v1/chat/completions")
+        guard let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else {
+            assertionFailure("Failed to parse request JSON")
+            return
+        }
+        assert(json["model"] as? String == "openai/gpt-oss-120b")
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"choices":[{"message":{"content":"```python\nuser_age = 25\n```"}}]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
