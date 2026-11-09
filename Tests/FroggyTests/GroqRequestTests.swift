@@ -49,6 +49,38 @@ final class GroqRequestTests {
         let code = try await GroqClient(session: session).generatePythonVariable(text: "создай переменную user_age со значением 25", apiKey: "test-key")
         assert(code == "user_age = 25")
     }
+
+    func testGeneratePythonDataStructureSanitizesMultilineCode() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PythonDictStub.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        let code = try await GroqClient(session: session).generatePythonVariable(text: "создай словарь, словарь пользователей", apiKey: "test-key")
+        assert(code.contains("users = {"))
+        assert(code.contains("1: {\"first_name\": \"Иван\""))
+    }
+}
+
+private final class PythonDictStub: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        let mockCode = """
+        ```python
+        users = {
+            1: {"first_name": "Иван", "last_name": "Иванов", "age": 30},
+        }
+        ```
+        """
+        let data = try! JSONSerialization.data(withJSONObject: [
+            "choices": [["message": ["content": mockCode]]]
+        ])
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
 
 private final class PythonVariableStub: URLProtocol {

@@ -313,17 +313,20 @@ final class GroqClient {
             cleaned = String(cleaned[thinkEnd.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        // Удаляем markdown code blocks ```python ... ``` или ``` ... ```
-        if cleaned.hasPrefix("```") {
-            let lines = cleaned.components(separatedBy: "\n")
-            var contentLines = lines
-            if contentLines.first?.hasPrefix("```") == true {
-                contentLines.removeFirst()
+        // Извлекаем чистый код из markdown code blocks ```python ... ``` или ``` ... ```
+        if let startRange = cleaned.range(of: "```") {
+            let afterStart = cleaned[startRange.upperBound...]
+            let codeStart: Substring
+            if let firstNewline = afterStart.firstIndex(of: "\n") {
+                codeStart = afterStart[afterStart.index(after: firstNewline)...]
+            } else {
+                codeStart = afterStart
             }
-            if contentLines.last?.hasPrefix("```") == true {
-                contentLines.removeLast()
+            if let endRange = codeStart.range(of: "```") {
+                cleaned = String(codeStart[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                cleaned = String(codeStart).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            cleaned = contentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         // Удаляем случайные кавычки вокруг всей строки
@@ -346,35 +349,42 @@ final class GroqClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are an expert Python software engineer specializing in turning natural language voice descriptions into clean, idiomatic, PEP 8 compliant Python variable definitions.
+        You are an expert Python software engineer specializing in turning natural language voice descriptions into clean, idiomatic, PEP 8 compliant Python code.
 
         CRITICAL OPERATING RULES:
         1. OUTPUT CODE ONLY:
-           - Output ONLY executable Python variable definition(s).
+           - Output ONLY valid, executable Python code.
            - NEVER wrap code in markdown fences (NO ``` or ```python).
-           - NEVER add quotes around the code block.
-           - NEVER include explanations, comments, greetings, or conversational remarks (NO "Here is your variable:", NO "Sure!").
-        2. VARIABLE NAMING (PEP 8):
-           - Variable names MUST be in valid Python snake_case.
-           - If the user specifies an explicit name (e.g. "создай переменную n", "user_age", "items"), use that exact name (converted to snake_case).
-           - If the user does not specify a name or uses a vague description (e.g. "создай список пользователей"), generate a descriptive, concise, idiomatic name (e.g. `user_list` or `users`).
-        3. VALUE & TYPE CONVERSION:
-           - Detect the intended Python type from user speech and provide realistic, proper literal values:
-             * Integers / Floats: e.g. 42, 100, 3.14, 0
-             * Strings: double quotes `"text"`, properly escaped if necessary
-             * Booleans: `True` or `False` (capitalized)
-             * Lists / Arrays: `["apple", "banana"]` or `[1, 2, 3]`
-             * Dictionaries / Objects: `{"key": "value"}`
-             * Sets: `{1, 2, 3}` or `set()` for empty set
+           - NEVER add quotes around the code.
+           - NEVER include explanations, comments, or conversational remarks.
+        2. VARIABLE & FUNCTION NAMING (PEP 8):
+           - All identifiers MUST be valid Python snake_case.
+           - If the user specifies an explicit name (e.g. "создай переменную n", "user_data", "items"), use that exact name.
+           - If the user does not specify a name, generate a concise, idiomatic name (e.g. `user_data`, `users`, `products`, `settings`).
+        3. FORMATTING OF DATA STRUCTURES (PEP 8):
+           - For multiline dictionaries, lists of dicts, and nested collections:
+             * Assignment line ends with opening delimiter: `name = {` or `name = [`
+             * Every element MUST be on its own line, indented by EXACTLY 4 spaces per nesting level.
+             * When inner record dictionaries are compact (3-5 small fields), keep each record on a single clean line (e.g. `1: {"first_name": "Иван", "last_name": "Иванов", "age": 30},`).
+             * Include a trailing comma `,` after every multiline element, including the last one.
+             * The closing delimiter (`}` or `]`) MUST be on its own newline at the base indentation level (0 spaces).
+           - For collections of entities (e.g. users, products, students), provide realistic, complete sample records (3 to 5 items) with appropriate keys (e.g. integer IDs `1, 2, 3...` or `"id"`, `"first_name"`, `"last_name"`, `"age"`) and realistic mock values matching the user's language (e.g. Russian names and cities if the user spoke Russian).
+        4. VALUE & TYPE CONVERSION:
+           - Detect the intended Python type from user speech:
+             * Integers / Floats: e.g. 42, 3.14
+             * Strings: double quotes `"text"`
+             * Booleans: `True` or `False`
+             * Lists: `["apple", "banana"]`
+             * Dictionaries: `{"key": "value"}`
+             * Sets: `{"a", "b"}` or `set()`
              * Tuples: `(1, 2)`
-             * None / null: `None`
+             * None: `None`
            - If the user specifies both name and explicit value, use them directly (e.g. "переменная x со значением 10" -> `x = 10`).
-           - If the user specifies a name and type without value, provide a standard sensible initial value for that type (e.g. `count = 0`, `name = ""`, `is_active = False`, `items = []`).
-           - If the user describes content conceptually (e.g. "список покупок с молоком и хлебом"), create the appropriate literal: `shopping_list = ["молоко", "хлеб"]`.
-        4. MULTIPLE VARIABLES:
-           - If the user describes multiple variables, output each on a new line.
-        5. NO SYNTAX ERRORS:
-           - The output must be directly syntactically valid in Python 3.
+           - If the user specifies a name and type without value, provide a standard sensible initial value for that type.
+        5. FUNCTION & CLASS SUPPORT:
+           - If the user asks for a function or method, define a clean PEP 8 function with type hints and a concise implementation or `pass`.
+        6. NO SYNTAX ERRORS:
+           - The output must be 100% syntactically valid in Python 3. No mismatched or dangling braces.
         """
 
         let payload: [String: Any] = [
@@ -384,7 +394,7 @@ final class GroqClient {
                 ["role": "user", "content": text]
             ],
             "temperature": 0.05,
-            "max_tokens": 512
+            "max_tokens": 2048
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)

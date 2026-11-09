@@ -196,8 +196,8 @@ final class AppCoordinator: ObservableObject {
 
                 print("[Froggy] AppCoordinator: final text = \"\(finalText)\"")
 
-                // 3. Вставка текста напрямую в целевое приложение без изменения буфера обмена
-                TextInjector.shared.insertText(finalText, targetApp: targetApp)
+                // 3. Вставка текста: прямо или через атомарный Paste (для кода/многострочного текста)
+                TextInjector.shared.insertText(finalText, targetApp: targetApp, mode: mode)
 
                 // 4. Готово!
                 FloatingHUDWindow.shared.update(state: .completed(message: successMessage))
